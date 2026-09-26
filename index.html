@@ -1,8 +1,17 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="und">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (() => {
+        let saved;
+        try { saved = localStorage.getItem('lavamilk-locale'); } catch (_) { /* storage may be unavailable */ }
+        document.documentElement.lang = saved === 'en' || saved === 'zh-CN'
+          ? saved
+          : (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
+      })();
+    </script>
     <link rel="icon" href="data:," />
     <title>Lavamilk</title>
   </head>

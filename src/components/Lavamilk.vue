@@ -1,6 +1,6 @@
 <script setup>
 // Lavamilk — 官网单文件组件（基于 SaaS Design 的模板改造，MIT licensed）
-import { computed, defineAsyncComponent, ref } from "vue";
+import { computed, defineAsyncComponent, ref, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSiteContent } from "../composables/useSiteContent";
 import LanguageSwitcher from "./LanguageSwitcher.vue";
@@ -10,7 +10,7 @@ const PigKing = defineAsyncComponent(() => import('../features/pig-king/PigKing.
 
 const props = defineProps({ onSignIn: Function, onSignUp: Function });
 
-const { t, tm } = useI18n();
+const { t, tm, locale } = useI18n();
 
 // 站点内容：英文读 CMS（后台可编辑），其它语言读语言包
 const { site, features, tiers, faqs, changelog } = useSiteContent();
@@ -62,6 +62,17 @@ const roles = computed(() => tm("roles"));
 const contacts = computed(() => tm("contacts"));
 
 const legalTitle = (p) => t("legalTitles." + p);
+const PAGE_TITLE_KEYS = {
+  features: "page.features.title", docs: "page.docs.title", pricing: "page.pricing.title",
+  changelog: "page.changelog.title", about: "page.about.title", blog: "page.blog.title", post: "page.post.title",
+  careers: "page.careers.title", contact: "page.contact.title", "pig-king": "pig.board",
+};
+watchEffect(() => {
+  document.documentElement.lang = locale.value;
+  const title = ["privacy", "terms", "security"].includes(page.value) ? legalTitle(page.value)
+    : PAGE_TITLE_KEYS[page.value] ? t(PAGE_TITLE_KEYS[page.value]) : "";
+  document.title = title ? `${title} | ${site.value.name}` : site.value.name;
+});
 // 价格以 $ 开头才显示周期（"定制"/"Custom" 不显示）
 const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
 </script>
