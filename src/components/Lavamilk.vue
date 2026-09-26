@@ -1,6 +1,6 @@
 <script setup>
 // Lavamilk — 官网单文件组件（基于 SaaS Design 的模板改造，MIT licensed）
-import { computed, defineAsyncComponent, ref } from "vue";
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSiteContent } from "../composables/useSiteContent";
 import LanguageSwitcher from "./LanguageSwitcher.vue";
@@ -15,15 +15,50 @@ const { t, tm } = useI18n();
 // 站点内容：英文读 CMS（后台可编辑），其它语言读语言包
 const { site, features, tiers, faqs, changelog } = useSiteContent();
 
-const page = ref(window.location.hash === "#pig-king" ? "pig-king" : "home");
+const PAGES = new Set(["home", "features", "docs", "pricing", "changelog", "about", "blog", "post", "careers", "contact", "privacy", "terms", "security", "pig-king"]);
+const pageFromUrl = () => {
+  const hash = window.location.hash.slice(1);
+  return PAGES.has(hash) ? hash : "home";
+};
+const page = ref(pageFromUrl());
 const open = ref(false);
 const year = new Date().getFullYear();
+const pageHash = (p) => p === "home" ? "" : `#${p}`;
+const pageHref = (p) => pageHash(p) || window.location.pathname + window.location.search;
 
 const go = (p) => {
-  page.value = p;
+  if (!PAGES.has(p)) return;
   open.value = false;
-  if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+  const hash = pageHash(p);
+  if (page.value === p && window.location.hash === hash) {
+    window.scrollTo({ top: 0 });
+    return;
+  }
+  const url = window.location.pathname + window.location.search + hash;
+  window.history.pushState(null, "", url);
+  page.value = p;
+  window.scrollTo({ top: 0 });
 };
+
+const navigate = (event, p) => {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  go(p);
+};
+
+const syncPageFromUrl = () => {
+  page.value = pageFromUrl();
+  open.value = false;
+  window.scrollTo({ top: 0 });
+};
+onMounted(() => {
+  window.addEventListener("popstate", syncPageFromUrl);
+  window.addEventListener("hashchange", syncPageFromUrl);
+});
+onUnmounted(() => {
+  window.removeEventListener("popstate", syncPageFromUrl);
+  window.removeEventListener("hashchange", syncPageFromUrl);
+});
 
 const logos = ["Northwind", "Vela", "Cobalt", "Mainsail", "Brightline", "Orbit", "Tidewater"];
 
@@ -82,11 +117,11 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
       <header class="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
         <div class="flex h-14 w-full items-center justify-between px-6">
           <div class="flex items-center gap-8">
-            <a href="#" @click.prevent="go('home')" class="flex cursor-pointer items-center gap-2">
+            <a :href="pageHref('home')" @click="navigate($event, 'home')" class="flex cursor-pointer items-center gap-2">
               <img src="/lavamilk-logo.png" alt="Lavamilk" class="brand-logo h-[38px] w-auto" />
             </a>
             <nav class="hidden items-center gap-6 lg:flex">
-              <a v-for="n in NAV" :key="n.label" href="#" @click.prevent="go(n.p)" :class="'cursor-pointer text-[13px] transition-colors hover:text-foreground ' + (page === n.p ? 'text-foreground' : 'text-muted-foreground')">{{ n.label }}</a>
+              <a v-for="n in NAV" :key="n.label" :href="pageHref(n.p)" @click="navigate($event, n.p)" :class="'cursor-pointer text-[13px] transition-colors hover:text-foreground ' + (page === n.p ? 'text-foreground' : 'text-muted-foreground')">{{ n.label }}</a>
               <CommunityMenu :active="page === 'pig-king'" :community-url="LAVAPIGGY_URL" @navigate="go" />
             </nav>
           </div>
@@ -100,7 +135,7 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
           </div>
         </div>
         <nav v-if="open" class="space-y-1 border-t border-border px-6 py-3 lg:hidden">
-          <a v-for="n in NAV" :key="n.label" href="#" @click.prevent="go(n.p)" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted">{{ n.label }}</a>
+          <a v-for="n in NAV" :key="n.label" :href="pageHref(n.p)" @click="navigate($event, n.p)" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted">{{ n.label }}</a>
           <CommunityMenu mobile :active="page === 'pig-king'" :community-url="LAVAPIGGY_URL" @navigate="go" />
           <div class="pt-1"><LanguageSwitcher /></div>
         </nav>
@@ -111,7 +146,7 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
           <h1 class="df-rise mx-auto max-w-3xl text-4xl font-bold leading-[1.05] tracking-[-0.03em] sm:text-6xl">{{ site.heroTitle }}</h1>
           <div class="df-rise-2 mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <a :href="SMT_REPO_URL" target="_blank" rel="noopener noreferrer" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md bg-foreground px-5 py-2.5 text-sm font-semibold text-background hover:opacity-90">{{ t('action.startDeploying') }} <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg></a>
-            <a href="#" @click.prevent="go('docs')" class="inline-flex cursor-pointer items-center justify-center rounded-md border border-border bg-card px-5 py-2.5 text-sm font-semibold hover:bg-muted">{{ t('action.readDocs') }}</a>
+            <a :href="pageHref('docs')" @click="navigate($event, 'docs')" class="inline-flex cursor-pointer items-center justify-center rounded-md border border-border bg-card px-5 py-2.5 text-sm font-semibold hover:bg-muted">{{ t('action.readDocs') }}</a>
           </div>
           <div class="df-rise-2 mx-auto mt-10 max-w-md overflow-hidden rounded-lg border border-border bg-card text-left shadow-sm">
             <div class="flex items-center gap-1.5 border-b border-border bg-muted px-3.5 py-2">
@@ -164,11 +199,11 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
       <header class="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
         <div class="flex h-14 w-full items-center justify-between px-6">
           <div class="flex items-center gap-8">
-            <a href="#" @click.prevent="go('home')" class="flex cursor-pointer items-center gap-2">
+            <a :href="pageHref('home')" @click="navigate($event, 'home')" class="flex cursor-pointer items-center gap-2">
               <img src="/lavamilk-logo.png" alt="Lavamilk" class="brand-logo h-[38px] w-auto" />
             </a>
             <nav class="hidden items-center gap-6 lg:flex">
-              <a v-for="n in NAV" :key="n.label" href="#" @click.prevent="go(n.p)" :class="'cursor-pointer text-[13px] transition-colors hover:text-foreground ' + (page === n.p ? 'text-foreground' : 'text-muted-foreground')">{{ n.label }}</a>
+              <a v-for="n in NAV" :key="n.label" :href="pageHref(n.p)" @click="navigate($event, n.p)" :class="'cursor-pointer text-[13px] transition-colors hover:text-foreground ' + (page === n.p ? 'text-foreground' : 'text-muted-foreground')">{{ n.label }}</a>
               <CommunityMenu :active="page === 'pig-king'" :community-url="LAVAPIGGY_URL" @navigate="go" />
             </nav>
           </div>
@@ -182,7 +217,7 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
           </div>
         </div>
         <nav v-if="open" class="space-y-1 border-t border-border px-6 py-3 lg:hidden">
-          <a v-for="n in NAV" :key="n.label" href="#" @click.prevent="go(n.p)" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted">{{ n.label }}</a>
+          <a v-for="n in NAV" :key="n.label" :href="pageHref(n.p)" @click="navigate($event, n.p)" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted">{{ n.label }}</a>
           <CommunityMenu mobile :active="page === 'pig-king'" :community-url="LAVAPIGGY_URL" @navigate="go" />
           <div class="pt-1"><LanguageSwitcher /></div>
         </nav>
@@ -304,7 +339,7 @@ lavamilk deploy</code></pre>
           </section>
           <section class="px-6 py-14 sm:px-16 lg:px-28">
             <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              <a v-for="p in posts" :key="p.title" href="#" @click.prevent="go('post')" class="group cursor-pointer rounded-xl border border-border bg-card p-6 transition-colors hover:bg-muted/50">
+              <a v-for="p in posts" :key="p.title" :href="pageHref('post')" @click="navigate($event, 'post')" class="group cursor-pointer rounded-xl border border-border bg-card p-6 transition-colors hover:bg-muted/50">
                 <span class="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{{ p.tag }} &middot; {{ p.read }}</span>
                 <h3 class="mt-3 text-lg font-semibold leading-snug tracking-tight">{{ p.title }}</h3>
                 <span class="mt-4 inline-flex items-center gap-1 text-sm font-medium">{{ t('action.readPost') }} <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg></span>
@@ -317,7 +352,7 @@ lavamilk deploy</code></pre>
         <template v-else-if="page === 'post'">
           <section class="border-b border-border px-6 py-16 sm:px-16 lg:px-28">
             <div class="mx-auto max-w-2xl">
-              <a href="#" @click.prevent="go('blog')" class="cursor-pointer font-mono text-[11px] uppercase tracking-wide text-muted-foreground hover:text-foreground">{{ t('action.backToBlog') }}</a>
+              <a :href="pageHref('blog')" @click="navigate($event, 'blog')" class="cursor-pointer font-mono text-[11px] uppercase tracking-wide text-muted-foreground hover:text-foreground">{{ t('action.backToBlog') }}</a>
               <p class="mt-6 font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{{ t('page.post.metaTag') }} &middot; {{ t('page.post.metaRead') }}</p>
               <h1 class="mt-3 text-3xl font-bold tracking-[-0.02em] sm:text-4xl">{{ t('page.post.title') }}</h1>
             </div>
@@ -340,7 +375,7 @@ lavamilk deploy</code></pre>
           </section>
           <section class="px-6 py-14 sm:px-16 lg:px-28">
             <div class="mx-auto max-w-2xl divide-y divide-border overflow-hidden rounded-xl border border-border">
-              <a v-for="r in roles" :key="r.t" href="#" @click.prevent="go('contact')" class="flex cursor-pointer items-center justify-between gap-4 bg-card p-5 transition-colors hover:bg-muted/50">
+              <a v-for="r in roles" :key="r.t" :href="pageHref('contact')" @click="navigate($event, 'contact')" class="flex cursor-pointer items-center justify-between gap-4 bg-card p-5 transition-colors hover:bg-muted/50">
                 <div><p class="text-sm font-semibold tracking-tight">{{ r.t }}</p><p class="mt-0.5 text-xs text-muted-foreground">{{ r.team }} &middot; {{ r.loc }}</p></div>
                 <span class="inline-flex items-center gap-1 text-sm font-medium">{{ t('action.apply') }} <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg></span>
               </a>
@@ -386,7 +421,7 @@ lavamilk deploy</code></pre>
       <div class="w-full px-6 py-14">
         <div class="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div class="lg:col-span-2">
-            <a href="#" @click.prevent="go('home')" class="flex cursor-pointer items-center gap-2">
+            <a :href="pageHref('home')" @click="navigate($event, 'home')" class="flex cursor-pointer items-center gap-2">
               <img src="/lavamilk-logo.png" alt="Lavamilk" class="brand-logo h-7 w-auto" />
             </a>
             <p class="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">{{ site.footerBlurb }}</p>
@@ -398,7 +433,7 @@ lavamilk deploy</code></pre>
           <div v-for="col in FOOT" :key="col.h">
             <p class="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{{ col.h }}</p>
             <ul class="mt-3 space-y-2.5 text-sm text-muted-foreground">
-              <li v-for="l in col.links" :key="l.label"><a href="#" @click.prevent="go(l.p)" class="cursor-pointer hover:text-foreground">{{ l.label }}</a></li>
+              <li v-for="l in col.links" :key="l.label"><a :href="pageHref(l.p)" @click="navigate($event, l.p)" class="cursor-pointer hover:text-foreground">{{ l.label }}</a></li>
             </ul>
           </div>
         </div>
