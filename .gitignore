@@ -15,3 +15,7 @@ pocketbase/pb_public
 .env
 .env.*
 *.sql
+
+# Browser test artifacts
+/test-results/
+/playwright-report/

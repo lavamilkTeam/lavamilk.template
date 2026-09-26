@@ -4,23 +4,42 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "test": "node --test pocketbase/pb_hooks/pig-king/tests/*.test.cjs pocketbase/pb_hooks/pig-account/tests/*.test.cjs",
+    "test": "npm run test:unit",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "pb:setup": "node scripts/pocketbase-setup.mjs",
     "pb:sync": "node scripts/pocketbase-sync.mjs",
-    "lint:boundaries": "depcruise server src pocketbase/pb_hooks --config .dependency-cruiser.cjs"
+    "lint:boundaries": "depcruise server src pocketbase/pb_hooks scripts --config .dependency-cruiser.cjs",
+    "test:unit": "node --test pocketbase/pb_hooks/pig-king/tests/*.test.cjs pocketbase/pb_hooks/pig-account/tests/*.test.cjs scripts/cms-sync/tests/*.test.mjs",
+    "test:integration": "node scripts/test-mysql.mjs",
+    "test:e2e": "playwright test",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "vue-tsc --noEmit",
+    "check": "npm run lint && npm run typecheck && npm run lint:boundaries && npm run test:unit && npm run build",
+    "check:all": "npm run check && npm run test:integration && npm run test:e2e"
   },
   "dependencies": {
     "vue": "^3.5.13",
-    "vue-i18n": "^11.4.12"
+    "vue-i18n": "^11.4.12",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.0.6",
+    "@types/node": "^22.20.4",
     "@vitejs/plugin-vue": "^5.2.1",
     "dependency-cruiser": "^18.4.0",
+    "eslint": "^10.11.0",
+    "eslint-plugin-vue": "^10.11.1",
+    "globals": "^17.12.0",
     "tailwindcss": "^4.0.6",
-    "vite": "^6.0.7"
+    "typescript": "~5.9",
+    "vite": "^6.0.7",
+    "vue-tsc": "^3.3.11"
+  },
+  "engines": {
+    "node": ">=22.16.0"
   }
 }

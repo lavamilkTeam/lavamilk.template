@@ -4,7 +4,7 @@ function evidenceFor(report) {
   const result=[];
   for(const [field,kind] of [['commits','commit'],['prs','PR'],['issues','issue']]) {
     for(const item of report[field] || []) {
-      if (!/^https:\/\/github\.com\/[a-z\d_.\/-]+$/i.test(item.url || '')) continue;
+      if (!/^https:\/\/github\.com\/[a-z\d_./-]+$/i.test(item.url || '')) continue;
       result.push({id:'E'+(result.length+1),kind,url:item.url,
         text:kind==='commit'?item.commit.message:(item.title+'\n'+(item.body || '')),
         textTruncated:!!item.textTruncated,state:item.state,merged:item.merged,
@@ -62,7 +62,7 @@ async function summarize(report, ai, previous, now=Date.now()) {
     const citedIds=new Set(review.findings.flatMap(f=>f.evidenceIds));
     const cited=evidence.filter(e=>citedIds.has(e.id));
     const value=await send(ai,'Write the final bilingual roast from the batch findings. Lead with a sharp evidence-backed verdict, not a neutral biography. Do not repeat boilerplate coverage text: the page displays it. Praise only when a supplied credit finding proves a concrete strength. Return JSON with zh and en, each {"title":"max60 chars","summary":"max250 Chinese / 550 English chars","highlights":[{"text":"a specific cutting critique or rare deserved credit","evidenceIds":["E1"]}]}. Use at most 4 highlights per language. All highlights require cited evidence. If evidence is absent, state that there is nothing to review; invent nothing.',
-      {account:report.account,since:report.since,until:report.until,score:report.score,metrics:report.metrics.map(({evidence,...m})=>m),coverage:report.coverage,aiCoverage:coverage,findings:review.findings},1600);
+      {account:report.account,since:report.since,until:report.until,score:report.score,metrics:report.metrics.map(({evidence: _evidence,...m})=>m),coverage:report.coverage,aiCoverage:coverage,findings:review.findings},1600);
     const output={};
     for(const lang of ['zh','en']) {
       const v=value[lang];if(typeof v?.title!=='string' || typeof v?.summary!=='string' || !Array.isArray(v?.highlights))throw new Error('ai');

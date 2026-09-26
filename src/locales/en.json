@@ -1,4 +1,5 @@
 {
+  "notFound": {"message": "This page could not be found.", "backHome": "Back to home"},
   "nav": {
     "community": "Community",
     "pigKing": "Pig Rankings",

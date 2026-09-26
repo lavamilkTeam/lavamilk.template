@@ -1,4 +1,5 @@
 {
+  "notFound": {"message": "找不到这个页面。", "backHome": "返回首页"},
   "nav": {
     "community": "社区",
     "pigKing": "猪猪榜",

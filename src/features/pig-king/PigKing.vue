@@ -1,9 +1,12 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
 import { getAccountLeaderboard, getAccountReport, scanAccount, getSession, loginGitHub, logoutGitHub } from './api.js';
 
 const { t, locale } = useI18n();
+const route = useRoute();
+const router = useRouter();
 const user = ref(null);
 const authLoading = ref(true);
 const loginEnabled = ref(false);
@@ -14,7 +17,7 @@ const board = ref([]);
 const boardLoading = ref(false);
 const boardError = ref(false);
 const selected = computed(() => report.value?.account);
-const progress = ref({ phase: 'profile', repositories: 0 });
+const progress = ref({ phase: 'profile', repositories: 0, processed: 0 });
 const aiSummary = computed(() => report.value?.ai?.[locale.value.startsWith('zh') ? 'zh' : 'en']);
 const controller = new AbortController();
 onUnmounted(() => controller.abort());
@@ -38,9 +41,8 @@ async function scan() {
   if (loading.value || !user.value) return;
   loading.value = true;
   error.value = '';
-  report.value = null;
   try {
-    progress.value = { phase: 'profile', repositories: 0 };
+    progress.value = { phase: 'profile', repositories: 0, processed: 0 };
     const data = await scanAccount(value => { progress.value = value; }, controller.signal);
     report.value = data.report;
     await refreshBoard();
@@ -72,11 +74,12 @@ async function logout() {
   catch (_) { error.value = 'offline'; }
 }
 onMounted(() => {
-  const params = new URLSearchParams(window.location.search);
-  if (params.has('pig_auth')) {
-    error.value = knownErrors.includes(params.get('pig_auth')) ? params.get('pig_auth') : 'oauthFailed';
-    params.delete('pig_auth');
-    window.history.replaceState(null, '', window.location.pathname + (params.size ? '?' + params : '') + window.location.hash);
+  if (route.query.pig_auth) {
+    const authError = String(route.query.pig_auth);
+    error.value = knownErrors.includes(authError) ? authError : 'oauthFailed';
+    const query = { ...route.query };
+    delete query.pig_auth;
+    router.replace({ query });
   }
   refreshSession(); refreshBoard();
 });

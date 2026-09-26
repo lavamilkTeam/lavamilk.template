@@ -3,7 +3,7 @@ async function request(path, options = {}) {
   let response;
   try {
     response = await fetch(`/api/pig-king/${path}`, { ...options, signal: options.signal || AbortSignal.timeout(105000) });
-  } catch (_) { throw new Error('offline'); }
+  } catch (error) { throw new Error('offline', { cause: error }); }
   const data = await response.json().catch(() => null);
   if (!response.ok) throw Object.assign(new Error(data?.code || (response.status === 429 ? 'rateLimit' : 'offline')), {retryAfter:data?.retryAfter});
   if (!data) throw new Error('offline');

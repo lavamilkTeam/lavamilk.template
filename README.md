@@ -117,8 +117,16 @@ cd pocketbase && unzip -o /tmp/pb.zip && chmod +x pocketbase
 
 「社区」菜单还保留暂未填写链接的 lavapiggy 社区选项。Google Noto 猪猪 SVG 许可保留在 `public/emoji/`，页面使用高清双语表情图。
 
-运行 `npm test`、`npm run lint:boundaries`、`npm run build` 验证评分、模块边界和前端。新服务的真实 MySQL 集成测试需要专用空测试数据库，具体命令见配置文档。
+运行 `npm run check:all` 验证静态检查、评分、模块边界、构建、真实 MySQL 及浏览器交互。测试环境要求见下文。
 
 ## License
 
 模板 MIT 许可（见 `LICENSE`）。
+
+## URL 路由与质量检查（2026-09-27）
+
+页面已支持 `/features`、`/docs`、`/pig-king` 等独立 URL、直接访问、刷新及浏览器前进/后退。生产 Nginx 必须合并 `ops/nginx/lavamilk-spa.conf`，具体见 [部署文档](docs/deployment-lavamilk.md#2026-09-27-url-路由发布要求仓库配置尚未部署)。本地 Vite 开发/预览自动提供 history fallback。
+
+使用 Node 22.16+，运行 `npm ci`、`npm ci --prefix server`、`npx playwright install chromium`，然后执行 `npm run check:all`。完整流程包含 lint、前端/CMS 类型检查、模块边界、单元测试、构建、真实 MySQL 集成和浏览器交互测试；本地集成测试需要 Docker，CI 自动提供测试数据库。详细范围见 [架构与检查](docs/architecture.md)。
+
+`pb:sync` 现在要求显式设置 `PB_ADMIN_EMAIL` 和 `PB_ADMIN_PASSWORD`，不再回退到默认密码。同步前完整读取并验证所有集合，读取失败不写入；写入阶段失败会退出并返回非零状态，可能已完成部分更新，排除故障后可重跑。旧 `pb:setup` 仍是破坏性重建脚本，不用于发布或日常内容更新。

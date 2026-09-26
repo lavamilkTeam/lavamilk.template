@@ -1,7 +1,7 @@
 <script setup>
-import Lavamilk from './components/Lavamilk.vue'
+import { RouterView } from 'vue-router'
 </script>
 
 <template>
-  <Lavamilk />
+  <RouterView />
 </template>

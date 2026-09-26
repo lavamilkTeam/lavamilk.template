@@ -142,3 +142,35 @@ test('local llama.cpp may be keyless only through a loopback endpoint', () => {
     assert.equal(calls, 1);
   }
 });
+
+test('expired report stays readable and ranked through failed refresh, retries and concurrent scans', () => {
+  const db = database();
+  const original = complete().report;
+  const row = db.record();
+  for (const [key, value] of Object.entries({ account: 'demo', report: original, score: original.score,
+    eligible: original.eligible, completedAt: now - 7 * 3600000 })) row.set(key, value);
+  db.app.save(row);
+  const env = { now, record: db.record, github() { throw new Error('github'); } };
+  assert.throws(() => scan(db.app, 'demo', env), /github/);
+  assert.deepEqual(getReport(db.app, 'demo').report, original);
+  assert.equal(leaderboard(db.app, now).items.length, 1);
+  assert.throws(() => scan(db.app, 'demo', env), /github/);
+  env.now += 61000;
+  const replies = [{ login: 'demo', type: 'User' }, [], response([]), response([]), response([])];
+  env.github = () => {
+    assert.equal(scan(db.app, 'demo', env).status, 'pending', 'Old report must not terminate a concurrent refresh');
+    assert.deepEqual(getReport(db.app, 'demo').report, original);
+    return replies.shift();
+  };
+  for (let i = 0; i < 5; i++) {
+    assert.equal(scan(db.app, 'demo', env).status, 'pending');
+    assert.deepEqual(getReport(db.app, 'demo').report, original);
+    env.now += 3000;
+  }
+  const result = scan(db.app, 'demo', env);
+  assert.equal(result.status, 'done');
+  assert.equal(result.report.eligible, 0);
+  assert.equal(getReport(db.app, 'demo').report.eligible, 0);
+  assert.equal(leaderboard(db.app, env.now).items.length, 0);
+  assert.equal(scan(db.app, 'demo', env).cached, true);
+});

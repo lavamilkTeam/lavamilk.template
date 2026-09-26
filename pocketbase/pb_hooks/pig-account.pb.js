@@ -8,7 +8,7 @@ routerAdd('POST', '/api/pig-king/account-scan', (e) => {
       if (token) headers.Authorization = 'Bearer ' + token;
       let response;
       try { response = $http.send({ url: 'https://api.github.com' + path, headers, timeout: 12 }); }
-      catch (_) { throw new Error('github'); }
+      catch (error) { throw new Error('github', { cause: error }); }
       if (response.statusCode === 404) throw new Error('notFound');
       if ([403, 429].includes(response.statusCode)) throw new Error('rateLimit');
       if (response.statusCode !== 200) throw new Error('github');

@@ -85,3 +85,13 @@
 另将 `/opt/gemma/start.sh` 的 batch-size/ubatch-size 从 256/128 降为 64/32，原文件保存在 `/opt/gemma/start.sh.pre-lavamilk-history`；另将默认 8192 MiB 的提示词 RAM 缓存显式限制为 `--cache-ram 256`，防止连续任务逐渐吃满内存；模型、视觉能力和 16384 上下文不变。官网把输入拆成小批，模型加载、繁忙或临时网络失败时等待后重试同一批，最多四次，失败批次显式计数。未完成 AI 的报告可立即重试，不被六小时缓存锁住。
 
 扩容及缓存限制后的真实验收：`iwakurarin` 从 2024-11-06 扫至 2026-09-24，读取 35/35 条提交、48/48 个 PR、0 个 Issues。AI 完成 83/83 条、失败批次 0、正文截断 0；生成带原始来源链接的中英毒舌报告，Safari 展示与 MySQL 保存均已确认。过程验证了模型重载后的任务续跑，没有重读已完成批次。
+
+## 2026-09-27 URL 路由发布要求（仓库配置，尚未部署）
+
+前端现在使用 HTML5 history 路由：`/features`、`/docs`、`/pig-king`、`/about` 等页面有独立地址。旧 `/#pig-king` 和带 `pig_auth` 的旧 OAuth 链接会替换为 `/pig-king`，保留查询参数；新后端 OAuth 登录回跳直接使用 `/pig-king`。GitHub OAuth App 的回调 URL `/api/pig-king/auth/callback` 不变。隐藏的 pricing/changelog 仍不显示导航入口。
+
+发布时合并 `ops/nginx/lavamilk-spa.conf` 到现有站点 server 块，替换已有 `location /`，不要重复声明。保留 `/api/pig-king/`、`/api/` 代理、证书验证、HTTPS 和宝塔原有配置。缺失静态资源应返回 404；API 不能被重写成 index.html。执行 `nginx -t` 成功后再 reload。
+
+验收：直接访问和刷新 `/docs`、`/pig-king` 正常；页面切换改变地址；浏览器前后退正常；旧登录链接可用；`/assets/missing.js` 返回 404；`/api/pig-king/health` 仍返回 JSON。未知页面由前端显示 404 UI（SPA 文档的 HTTP 状态为 200）。
+
+参考：[Vue Router history 部署说明](https://router.vuejs.org/guide/essentials/history-mode.html)。

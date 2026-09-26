@@ -41,6 +41,7 @@ test('MySQL OAuth, access control, durable personal rankings and refresh recover
   assert.match(start.headers.getSetCookie()[0],/HttpOnly.*SameSite=Lax.*Secure/);
   await req(`auth/callback?state=${state}&code=ok`);assert.equal(exchanges,0,'Missing state cookie must not exchange code');
   const callback=await req(`auth/callback?state=${state}&code=ok`,{headers:{Cookie:stateCookie}});
+  assert.equal(callback.headers.get('location'), origin + '/pig-king');
   const session=callback.headers.getSetCookie().find(v=>v.startsWith('pig_session=')).split(';')[0];
   await req(`auth/callback?state=${state}&code=ok`,{headers:{Cookie:stateCookie}});assert.equal(exchanges,1,'OAuth state is single use');
   assert.equal((await req('auth/session',{headers:{Cookie:session}})).status,200);
@@ -71,6 +72,7 @@ test('MySQL OAuth, access control, durable personal rankings and refresh recover
     failGithub=true;clock+=3000;
     assert.equal((await req('account-scan',post(fresh))).status,429);
     assert.equal((await (await req('account-leaderboard')).json()).items.length,1,'Failed refresh retains previous report');
+    assert.equal((await (await req('account-report/demo')).json()).report.eligible,22,'Failed refresh keeps the full report readable');
     assert.equal((await req('auth/logout',post(fresh))).status,200);
     assert.equal((await req('account-scan',post(fresh))).status,401);
     assert(!JSON.stringify(await (await req('account-report/demo')).json()).includes('never-persist'));

@@ -1,9 +1,9 @@
 <script setup>
 import { onMounted, onUnmounted, ref, useId } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { RouterLink } from 'vue-router';
 
 defineProps({ active: Boolean, mobile: Boolean, communityUrl: { type: String, default: '' } });
-const emit = defineEmits(['navigate']);
 const { t } = useI18n();
 const expanded = ref(false);
 const root = ref(null);
@@ -24,11 +24,6 @@ function escapeMenu() {
   trigger.value?.focus();
 }
 
-function openPigRanking() {
-  expanded.value = false;
-  emit('navigate', 'pig-king');
-}
-
 onMounted(() => document.addEventListener('pointerdown', closeOutside));
 onUnmounted(() => document.removeEventListener('pointerdown', closeOutside));
 </script>
@@ -40,7 +35,7 @@ onUnmounted(() => document.removeEventListener('pointerdown', closeOutside));
       <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" :class="{ 'community-chevron-open': expanded }"><path d="m4.5 6 3.5 3.5L11.5 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
     </button>
     <div v-if="expanded" :id="panelId" class="community-panel">
-      <button type="button" class="community-option" :aria-current="active ? 'page' : undefined" @click="openPigRanking">{{ t('nav.pigKing') }}</button>
+      <RouterLink :to="{ name: 'pig-king' }" class="community-option" @click="expanded = false">{{ t('nav.pigKing') }}</RouterLink>
       <a v-if="communityUrl" :href="communityUrl" class="community-option" target="_blank" rel="noopener noreferrer" @click="expanded = false">{{ t('nav.lavapiggy') }}</a>
       <button v-else type="button" class="community-option" disabled>{{ t('nav.lavapiggy') }}</button>
     </div>

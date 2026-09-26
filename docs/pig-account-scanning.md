@@ -39,4 +39,4 @@ AI 未配置显示「尚未启用」，失败、超时或输出不合法显示�
 
 每个 POST `/api/pig-king/account-scan` 最多推进一次外部请求，返回进度或完成报告。短事务先领取 120 秒租约，再释放数据库锁并请求外部服务；同账户并发复用同一任务，旧 worker 不覆盖新租约。上游错误保留进度并冷却 60 秒。API 每 IP 每分钟最多 30 次，前端每步间隔 2.2 秒。GET `/api/pig-king/account-leaderboard` 只返回紧凑排名条目；GET `/api/pig-king/account-report/{account}` 返回完整已生成报告。集合 CRUD 禁止匿名读写，分数与任务阶段不能由客户端指定。
 
-部署需新增 `1790208000_pig_accounts.js` 迁移和 `pig-account.pb.js`、`pig-account/`，然后重启 PocketBase；不要替换生产 `pb_data`。本地验证使用真实 PocketBase 0.40.4、测试用例和前端构建。未新增 dependency-cruiser 依赖；跨模块导入仅使用根入口，现有项目没有自动化边界检查。
+部署需新增 `1790208000_pig_accounts.js` 迁移和 `pig-account.pb.js`、`pig-account/`，然后重启 PocketBase；不要替换生产 `pb_data`。本地验证使用真实 PocketBase 0.40.4、测试用例和前端构建。跨模块导入仅使用根入口；当前已通过 `npm run lint:boundaries` 自动检查，完整验证流程见 `docs/architecture.md`。

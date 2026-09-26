@@ -8,7 +8,7 @@ function summarize(report, ai) {
   const repositories = report.repositories.slice().sort((a, b) => b.stars - a.stars).slice(0, 15);
   const evidence = [];
   function add(kind, title, url) {
-    if (typeof url !== 'string' || !/^https:\/\/github\.com\/[a-z\d_.\/-]+$/i.test(url)) return;
+    if (typeof url !== 'string' || !/^https:\/\/github\.com\/[a-z\d_./-]+$/i.test(url)) return;
     evidence.push({ id: 'E' + (evidence.length + 1), kind, title, url });
   }
   repositories.forEach(r => add('repository', r.name + ': ' + r.description, 'https://github.com/' + r.name));
@@ -16,7 +16,7 @@ function summarize(report, ai) {
   report.prs.slice(0, 12).forEach(p => add('PR', p.title, p.url));
   report.issues.slice(0, 12).forEach(p => add('issue', p.title, p.url));
   const data = { account: report.account, kind: report.kind, since: report.since, until: report.until,
-    score: report.score, eligible: report.eligible, metrics: report.metrics.map(({ evidence, ...m }) => m),
+    score: report.score, eligible: report.eligible, metrics: report.metrics.map(({ evidence: _evidence, ...m }) => m),
     repositories: report.repositoryStats, coverage: report.coverage, evidence };
   try {
     const response = ai.send({ url: ai.url, method: 'POST', timeout: 90,

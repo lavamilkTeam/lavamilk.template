@@ -16,7 +16,7 @@ function begin(account, now) {
   return { version: VERSION, account: normalizeAccount(account), phase: 'profile', page: 1, repositories: [], startedAt: new Date(now).toISOString() };
 }
 const day = timestamp => new Date(timestamp).toISOString().slice(0,10);
-const safeUrl = value => typeof value === 'string' && /^https:\/\/github\.com\/[a-z\d_.\/-]+$/i.test(value);
+const safeUrl = value => typeof value === 'string' && /^https:\/\/github\.com\/[a-z\d_./-]+$/i.test(value);
 function compactRepo(r) {
   return { name:r.full_name, description:(r.description || '').slice(0,240), language:r.language || '', stars:r.stargazers_count || 0, fork:!!r.fork, archived:!!r.archived, pushedAt:r.pushed_at };
 }

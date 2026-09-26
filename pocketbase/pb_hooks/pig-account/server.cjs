@@ -7,9 +7,12 @@ function find(app, account) {
   return app.findRecordsByFilter('pig_accounts', 'account = {:account}', '', 1, 0, { account })[0];
 }
 function view(record, cached) {
+  const job = json(record, 'job');
+  // A refresh can coexist with the last completed report. Scan callers need
+  // progress until the replacement is committed; report readers keep old data.
+  if (!cached && job?.phase) return { status: 'pending', phase: job.phase, repositories: job.repositories?.length || 0 };
   const report = json(record, 'report');
   if (report?.account) return { status: 'done', report, cached: !!cached };
-  const job = json(record, 'job');
   return { status: 'pending', phase: job.phase, repositories: job.repositories?.length || 0 };
 }
 function scan(app, input, env) {
@@ -31,9 +34,8 @@ function scan(app, input, env) {
       row.set('account', account);
     }
     let job = json(row, 'job');
-    if (!job?.phase || row.getFloat('completedAt') || Date.parse(job.startedAt) < env.now - CACHE) {
+    if (!job?.phase || Date.parse(job.startedAt) < env.now - CACHE) {
       job = domain.begin(account, env.now);
-      row.set('report', null); row.set('completedAt', 0); row.set('eligible', 0); row.set('score', 0);
     }
     row.set('job', job);
     row.set('failure', '');

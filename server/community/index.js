@@ -46,11 +46,11 @@ export async function createApplication(config, { fetch: transport = globalThis.
       if (method==='GET' && path==='/api/pig-king/health') { await store.health(); return json(res,200,{status:'ok',database:'mysql',oauthConfigured:oauth.enabled}); }
       if (method==='GET' && path==='/api/pig-king/auth/login') {
         try { const start=await oauth.start(); return redirect(res,start.url,[start.cookie]); }
-        catch(e) { return redirect(res,origin+'/?pig_auth='+ (e.message==='authUnavailable'?'authUnavailable':'offline') +'#pig-king'); }
+        catch(e) { return redirect(res,origin+'/pig-king?pig_auth='+ (e.message==='authUnavailable'?'authUnavailable':'offline')); }
       }
       if (method==='GET' && path==='/api/pig-king/auth/callback') {
-        try { return redirect(res,origin+'/#pig-king',await oauth.finish(req,url.searchParams)); }
-        catch { return redirect(res,origin+'/?pig_auth=oauthFailed#pig-king',[setCookie('pig_oauth','',0,oauth.secure)]); }
+        try { return redirect(res,origin+'/pig-king',await oauth.finish(req,url.searchParams)); }
+        catch { return redirect(res,origin+'/pig-king?pig_auth=oauthFailed',[setCookie('pig_oauth','',0,oauth.secure)]); }
       }
       if (method==='GET' && path==='/api/pig-king/account-leaderboard') return json(res,200,{items:await store.leaderboard()});
       if (method==='GET' && path.startsWith('/api/pig-king/account-report/')) {
