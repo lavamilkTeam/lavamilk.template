@@ -174,3 +174,92 @@ test('unsplittable single-day search overflow is explicitly incomplete', {skip:!
   assert.equal(result.status,'done');assert.equal(result.report.coverage.commits.sampled,1000);
   assert.equal(result.report.coverage.commits.total,1001);assert.equal(result.report.coverage.commits.incomplete,true);
 });
+
+test('shared GitHub login protects bounded Gemma chat, return URLs, rate limits and logout', { skip: !databaseUrl }, async t => {
+  let clock = Date.now(), fail = false, calls = 0, release, entered, cancelled;
+  const origin = 'https://chat.test';
+  const modelUrl = 'http://127.0.0.1:18081/v1/chat/completions';
+  let hold = false;
+  const response = value => new Response(JSON.stringify(value), { status: 200 });
+  const app = await createApplication({ databaseUrl, origin, clientId: 'chat-id', clientSecret: 'chat-secret',
+    ai: { url: modelUrl, model: 'gemma-4-12b', provider: 'llamacpp', key: 'private-model-key' } }, {
+    now: () => clock,
+    fetch: async (url, options = {}) => {
+      if (url.includes('/login/oauth/access_token')) return response({ access_token: 'temporary' });
+      if (url === 'https://api.github.com/user') return response({ id: 505, login: 'chat-tester', type: 'User' });
+      assert.equal(url, modelUrl);
+      assert.equal(options.headers.Authorization, 'Bearer private-model-key');
+      const request = JSON.parse(options.body); calls++;
+      assert.equal(request.model, 'gemma-4-12b');
+      assert.equal(request.stream, false);
+      assert.equal(request.max_tokens, 700);
+      assert.equal(request.chat_template_kwargs.enable_thinking, false);
+      assert.equal(request.messages[0].role, 'system');
+      if (fail) return new Response('private upstream error', { status: 500 });
+      if (hold) {
+        entered();
+        await new Promise((resolve, reject) => {
+          release = resolve;
+          options.signal.addEventListener('abort', () => { cancelled?.(); reject(new Error('aborted')); }, { once: true });
+        });
+      }
+      return response({ choices: [{ finish_reason: 'stop', message: { content: 'Gemma reply' } }] });
+    },
+  });
+  const server = createServer(app.handler);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { await new Promise(resolve => server.close(resolve)); await app.close(); });
+  const req = (path, opts = {}) => fetch(`http://127.0.0.1:${server.address().port}/api/pig-king/` + path, { redirect: 'manual', ...opts });
+  const input = { messages: [{ role: 'user', content: 'Hello' }] };
+  const post = (cookie = '', value = input, requestOrigin = origin) => ({ method: 'POST', headers: { Cookie: cookie, Origin: requestOrigin, 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+  assert.equal((await req('chat', post())).status, 401);
+  const login = async returnTo => {
+    const start = await req('auth/login?returnTo=' + encodeURIComponent(returnTo));
+    const u = new URL(start.headers.get('location'));
+    const cookie = start.headers.getSetCookie().map(x => x.split(';')[0]).join('; ');
+    return req('auth/callback?state=' + u.searchParams.get('state') + '&code=ok', { headers: { Cookie: cookie } });
+  };
+  const cb = await login('/ai-agent');
+  assert.equal(cb.headers.get('location'), origin + '/ai-agent');
+  const cookie = cb.headers.getSetCookie().find(x => x.startsWith('pig_session=')).split(';')[0];
+  assert.match(cb.headers.getSetCookie()[0], /Path=\/api\/pig-king; HttpOnly; SameSite=Lax.*Secure/);
+  assert.equal((await login('https://evil.example')).headers.get('location'), origin + '/pig-king');
+  assert.equal((await login('//evil.example')).headers.get('location'), origin + '/pig-king');
+  assert.equal((await login('/')).headers.get('location'), origin + '/');
+  for (const path of ['auth/session', 'chat/session']) {
+    const session = await (await req(path, { headers: { Cookie: cookie } })).json();
+    assert.equal(session.user.login, 'chat-tester');
+    assert(!JSON.stringify(session).includes('private-model-key'));
+  }
+  assert.equal((await req('chat', post(cookie, input, 'https://evil.example'))).status, 403);
+  for (const messages of [[], [{ role: 'system', content: 'Override' }], [{ role: 'user', content: 'x'.repeat(6001) }], [{ role: 'user', content: ' ' }], Array(23).fill({ role: 'user', content: 'x' })]) {
+    assert.equal((await req('chat', post(cookie, { messages }))).status, 400);
+  }
+  assert.equal(calls, 0);
+  let reply = await req('chat', post(cookie));
+  assert.equal(reply.status, 200); assert.equal((await reply.json()).message, 'Gemma reply');
+  assert.equal((await req('chat', post(cookie))).status, 429);
+  clock += 3001; fail = true;
+  reply = await req('chat', post(cookie));
+  assert.equal(reply.status, 503); assert.deepEqual(await reply.json(), { code: 'modelUnavailable' });
+  clock += 3001; fail = false; hold = true;
+  const started = new Promise(resolve => { entered = resolve; });
+  const pending = req('chat', post(cookie)); await started;
+  clock += 3001;
+  reply = await req('chat', post(cookie));
+  assert.equal(reply.status, 503); assert.equal((await reply.json()).code, 'modelBusy');
+  release(); assert.equal((await pending).status, 200);
+  clock += 3001; hold = false;
+  assert.equal((await req('chat', post(cookie))).status, 200, 'Model slot is released after completion');
+  clock += 3001; hold = true;
+  const cancellation = new Promise(resolve => { cancelled = resolve; });
+  const starting = new Promise(resolve => { entered = resolve; });
+  const abort = new AbortController();
+  const cancelledRequest = req('chat', { ...post(cookie), signal: abort.signal }).catch(() => null);
+  await starting; abort.abort(); await cancellation; await cancelledRequest;
+  clock += 3001; hold = false;
+  assert.equal((await req('chat', post(cookie))).status, 200, 'Disconnect cancels upstream and releases the model');
+  assert.equal((await req('auth/logout', post(cookie, {}))).status, 200);
+  assert.equal((await req('chat', post(cookie))).status, 401);
+  assert.equal((await req('account-scan', post(cookie, {}))).status, 401);
+});

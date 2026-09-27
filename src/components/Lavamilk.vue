@@ -1,17 +1,17 @@
 <script setup>
 // Lavamilk — 官网单文件组件（基于 SaaS Design 的模板改造，MIT licensed）
 import { computed, defineAsyncComponent, ref, watch } from "vue";
-import { RouterLink, useRoute, useRouter } from 'vue-router';
+import { RouterLink, useRoute } from 'vue-router';
 import { useI18n } from "vue-i18n";
 import { useSiteContent } from "../composables/useSiteContent";
 import LanguageSwitcher from "./LanguageSwitcher.vue";
 import CommunityMenu from "./CommunityMenu.vue";
+import GitHubAccount from "./GitHubAccount.vue";
 
 const AiAgent = defineAsyncComponent(() => import('../features/ai-agent/AiAgent.vue'));
 const PigKing = defineAsyncComponent(() => import('../features/pig-king/PigKing.vue'));
 
 defineProps({ page: { type: String, default: 'home' }, onSignIn: Function, onSignUp: Function });
-const router = useRouter();
 const route = useRoute();
 
 const { t, tm } = useI18n();
@@ -22,9 +22,6 @@ const { site, features, tiers, faqs, changelog } = useSiteContent();
 const open = ref(false);
 const year = new Date().getFullYear();
 
-const go = (p) => {
-  router.push({ name: p });
-};
 watch(() => route.fullPath, () => { open.value = false; });
 
 const logos = ["Northwind", "Vela", "Cobalt", "Mainsail", "Brightline", "Orbit", "Tidewater"];
@@ -94,8 +91,8 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
           </div>
           <div class="flex items-center gap-2">
             <LanguageSwitcher class="hidden sm:block" />
-            <button type="button" @click="go('pig-king')" class="hidden cursor-pointer rounded-md px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground sm:inline-block">{{ t('action.signIn') }}</button>
-            <a :href="SMT_REPO_URL" target="_blank" rel="noopener noreferrer" class="inline-flex cursor-pointer items-center justify-center rounded-md bg-foreground px-3.5 py-1.5 text-[13px] font-semibold text-background hover:opacity-90">{{ t('action.startDeploying') }}</a>
+            <GitHubAccount />
+            <a :href="SMT_REPO_URL" target="_blank" rel="noopener noreferrer" class="hidden cursor-pointer items-center justify-center rounded-md bg-foreground sm:inline-flex px-3.5 py-1.5 text-[13px] font-semibold text-background hover:opacity-90">{{ t('action.startDeploying') }}</a>
             <button class="-mr-1 rounded-md p-2 text-muted-foreground hover:bg-muted lg:hidden" @click="open = !open" aria-label="Menu">
               <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path v-if="open" d="M18 6 6 18M6 6l12 12" /><path v-else d="M3 6h18M3 12h18M3 18h18" /></svg>
             </button>
@@ -176,8 +173,8 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
           </div>
           <div class="flex items-center gap-2">
             <LanguageSwitcher class="hidden sm:block" />
-            <button type="button" @click="go('pig-king')" class="hidden cursor-pointer rounded-md px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground sm:inline-block">{{ t('action.signIn') }}</button>
-            <a :href="SMT_REPO_URL" target="_blank" rel="noopener noreferrer" class="inline-flex cursor-pointer items-center justify-center rounded-md bg-foreground px-3.5 py-1.5 text-[13px] font-semibold text-background hover:opacity-90">{{ t('action.startDeploying') }}</a>
+            <GitHubAccount />
+            <a :href="SMT_REPO_URL" target="_blank" rel="noopener noreferrer" class="hidden cursor-pointer items-center justify-center rounded-md bg-foreground sm:inline-flex px-3.5 py-1.5 text-[13px] font-semibold text-background hover:opacity-90">{{ t('action.startDeploying') }}</a>
             <button class="-mr-1 rounded-md p-2 text-muted-foreground hover:bg-muted lg:hidden" @click="open = !open" aria-label="Menu">
               <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path v-if="open" d="M18 6 6 18M6 6l12 12" /><path v-else d="M3 6h18M3 12h18M3 18h18" /></svg>
             </button>

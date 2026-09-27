@@ -2,7 +2,10 @@
 
 ## 模块
 
-- `src/features/ai-agent/AiAgent.vue` 是官网 `/ai-agent` 页面入口，通过同源 iframe 展示 `/ai-chat/`。`apps/ai-agent` 独立构建 Nuxt UI Chat 模板，不跨应用导入源码或服务端模块；复制构建结果由 `scripts/copy-ai-agent.mjs` 完成。账户和模型接入待后续配置，目前不发送消息、不存储会话或 API Key。
+- `src/features/ai-agent/AiAgent.vue` 是官网 `/ai-agent` 页面入口，通过同源 iframe 展示 `/ai-chat/`。`apps/ai-agent` 独立构建 Nuxt UI Chat 模板，不跨应用导入源码或服务端模块；复制构建结果由 `scripts/copy-ai-agent.mjs` 完成。通过同源 `/api/pig-king/chat` 调用 Gemma，复用 GitHub HttpOnly 会话；消息仅在页面内存保存。聊天应用通过自己的 `api.js` 访问 HTTP，不接触模型密钥。
+
+- `src/composables/useGitHubSession.js` 为官网顶部和猪猪榜共享的 GitHub 会话入口；独立聊天应用通过同源 HTTP 和只通知状态变化的 BroadcastChannel 同步登录状态，不跨应用导入源码。
+- `server/community/lib/model.js` 是社区内部的统一模型适配器，猪猪榜和智能体共用单并发及 90 秒上限；聊天先验证登录、Origin、消息角色和长度，再调用配置中的固定模型地址。
 
 - `src/router.js` 声明页面 URL、历史模式及旧 `/#pig-king` 登录链接兼容。App 通过 RouterView 渲染；页面与菜单使用 Vue Router 公共接口，不反向导入路由配置。
 - `src/components` 为页面布局和可复用 UI。`Lavamilk.vue` 暂时保留模板的多页面布局，不在本次修复中整体重写。

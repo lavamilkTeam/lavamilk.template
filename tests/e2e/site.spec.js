@@ -4,6 +4,7 @@ import { test, expect } from '@playwright/test';
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/collections/**', route => route.fulfill({ status: 503, json: {} }));
   await page.route('**/api/pig-king/auth/session', route => route.fulfill({ json: { user: null, loginEnabled: true } }));
+  await page.route('**/api/pig-king/chat/session', route => route.fulfill({ json: { user: null, loginEnabled: true, model: 'gemma-4-12b' } }));
   await page.route('**/api/pig-king/account-leaderboard', route => route.fulfill({ json: { items: [] } }));
 });
 
@@ -79,7 +80,7 @@ test('failed refresh retains the displayed report and the leaderboard', async ({
   await expect(page.locator('.pig-rank-list')).toContainText('demo');
 });
 
-test('AI agent opens from Community, loads its local template and keeps sending unavailable', async ({ page }) => {
+test('AI agent opens from Community, loads its local template and requires GitHub login before sending', async ({ page }) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
@@ -93,7 +94,7 @@ test('AI agent opens from Community, loads its local template and keeps sending 
   await expect(chat.getByRole('heading', { name: 'What shall we work on today?' })).toBeVisible();
   await chat.getByRole('button', { name: 'Help me review some code' }).click();
   await expect(chat.getByRole('textbox')).toHaveValue('Help me review some code');
-  await expect(chat.getByRole('button', { name: 'Model connection pending' })).toBeDisabled();
+  await expect(chat.getByRole('button', { name: 'Send', exact: true })).toBeDisabled();
   await chat.getByRole('button', { name: 'New chat', exact: true }).click();
   await expect(chat.getByRole('textbox')).toHaveValue('');
   await page.reload();
@@ -111,7 +112,66 @@ test('AI agent supports Chinese mobile navigation without horizontal overflow', 
   await expect(page.locator('header nav:visible')).toHaveCount(0);
   const chat = page.frameLocator('iframe[title="AI智能体"]');
   await expect(chat.getByRole('heading', { name: '今天，想一起做点什么？' })).toBeVisible();
-  await expect(chat.getByRole('status')).toContainText('模型接入待配置');
+  await expect(chat.getByRole('status')).toContainText('登录 GitHub 后开始对话');
   const body = chat.locator('body');
   expect(await body.evaluate(el => el.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+
+test('one GitHub session covers header, ranking and Gemma chat, including sign out', async ({ page }) => {
+  let user = { id: '1', login: 'demo', avatar: 'https://avatars.githubusercontent.com/u/1' };
+  const payloads = [];
+  await page.route('**/api/pig-king/auth/session', route => route.fulfill({ json: { user, loginEnabled: true } }));
+  await page.route('**/api/pig-king/chat/session', route => route.fulfill({ json: { user, loginEnabled: true, model: 'gemma-4-12b' } }));
+  await page.route('**/api/pig-king/auth/logout', route => { user = null; return route.fulfill({ json: { ok: true } }); });
+  await page.route('**/api/pig-king/chat', route => {
+    payloads.push(route.request().postDataJSON());
+    return route.fulfill({ json: { message: '<script>literal text</script> Gemma reply', model: 'gemma-4-12b', truncated: false } });
+  });
+  await page.goto('/pig-king');
+  await expect(page.locator('header summary')).toHaveText('demo');
+  await expect(page.locator('.pig-identity strong')).toHaveText('demo');
+  await page.locator('header .community-trigger:visible').click();
+  await page.getByRole('link', { name: 'AI Agents', exact: true }).click();
+  const chat = page.frameLocator('iframe');
+  await chat.getByRole('textbox').fill('Hello Gemma');
+  await chat.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(chat.getByRole('log')).toContainText('<script>literal text</script> Gemma reply');
+  await chat.getByRole('textbox').fill('Follow up');
+  await chat.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(chat.getByRole('log').locator('article')).toHaveCount(4);
+  expect(payloads[1].messages.map(m => m.role)).toEqual(['user', 'assistant', 'user']);
+  await page.locator('header summary').click();
+  await page.locator('header').getByRole('button', { name: 'Sign out', exact: true }).click();
+  await expect(chat.getByRole('link', { name: 'Sign in with GitHub', exact: true })).toBeVisible();
+  await expect(chat.getByRole('button', { name: 'Send', exact: true })).toBeDisabled();
+  await expect(page.locator('header').getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+});
+
+test('Gemma failure preserves the prompt for retry and stop cancels generation', async ({ page }) => {
+  await page.route('**/api/pig-king/chat/session', route => route.fulfill({ json: { user: { login: 'demo' }, loginEnabled: true, model: 'gemma-4-12b' } }));
+  let count = 0;
+  let release;
+  await page.route('**/api/pig-king/chat', async route => {
+    count++;
+    if (count === 1) return route.fulfill({ status: 503, json: { code: 'modelBusy' } });
+    if (count === 2) return route.fulfill({ json: { message: 'Recovered', truncated: false } });
+    await new Promise(resolve => { release = resolve; });
+    await route.abort().catch(() => {});
+  });
+  await page.goto('/ai-agent');
+  const chat = page.frameLocator('iframe');
+  await chat.getByRole('textbox').fill('Keep this question');
+  await chat.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(chat.getByRole('alert')).toContainText('busy');
+  await expect(chat.getByRole('textbox')).toHaveValue('Keep this question');
+  await chat.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(chat.getByRole('log')).toContainText('Recovered');
+  await chat.getByRole('textbox').fill('Stop this question');
+  await chat.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect.poll(() => count).toBe(3);
+  await chat.getByRole('button', { name: 'Stop generating', exact: true }).click();
+  await expect(chat.getByRole('textbox')).toHaveValue('Stop this question');
+  await expect(chat.getByRole('log').locator('article')).toHaveCount(2);
+  release();
 });

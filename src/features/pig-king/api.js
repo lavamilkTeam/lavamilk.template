@@ -40,7 +40,3 @@ export async function getAccountLeaderboard() {
 export function getAccountReport(account) {
   return request('account-report/' + encodeURIComponent(account));
 }
-
-export function getSession() { return request('auth/session'); }
-export function loginGitHub() { window.location.assign('/api/pig-king/auth/login'); }
-export function logoutGitHub() { return request('auth/logout', { method: 'POST' }); }

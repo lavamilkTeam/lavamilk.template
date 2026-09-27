@@ -132,8 +132,8 @@ cd pocketbase && unzip -o /tmp/pb.zip && chmod +x pocketbase
 `pb:sync` 现在要求显式设置 `PB_ADMIN_EMAIL` 和 `PB_ADMIN_PASSWORD`，不再回退到默认密码。同步前完整读取并验证所有集合，读取失败不写入；写入阶段失败会退出并返回非零状态，可能已完成部分更新，排除故障后可重跑。旧 `pb:setup` 仍是破坏性重建脚本，不用于发布或日常内容更新。
 
 
-### AI智能体（界面预览）
+### AI智能体（Gemma）
 
-导航“社区”菜单中的“AI智能体”进入 `/ai-agent`，展示基于 [Nuxt UI Chat](https://github.com/nuxt-ui-templates/chat-vue) 的独立聊天界面。账户和模型接入留待配置；当前发送按钮禁用，不产生模拟回复。模板 MIT 许可见 `apps/ai-agent/LICENSE`。
+导航“社区”菜单中的“AI智能体”进入 `/ai-agent`，展示基于 [Nuxt UI Chat](https://github.com/nuxt-ui-templates/chat-vue) 的独立聊天界面。顶部登录、猪猪榜和智能体共用 GitHub 登录会话。智能体通过官网后端调用与猪猪榜相同的本地 Gemma，支持多轮问答、停止生成与失败重试；对话只保留在当前页面内存，刷新后清空。模板 MIT 许可见 `apps/ai-agent/LICENSE`。
 
-首次执行 `npm ci --prefix apps/ai-agent`。本地开发分别运行 `npm run dev` 和 `npm run dev:agent`（5174），从官网 5173 访问。`npm run build` 会一并构建官网和聊天应用，将聊天静态资源输出到 `dist/ai-chat/`。生产无需新增后端服务。
+首次执行 `npm ci --prefix apps/ai-agent`。本地开发分别运行 `npm run dev` 和 `npm run dev:agent`（5174），从官网 5173 访问。`npm run build` 会一并构建官网和聊天应用，将聊天静态资源输出到 `dist/ai-chat/`。生产复用现有社区后端及 `PIG_AI_URL`、`PIG_AI_MODEL`、`PIG_AI_PROVIDER` 配置，模型端口不对公网开放。

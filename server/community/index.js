@@ -2,13 +2,14 @@
 import { openStore } from './lib/mysql.js';
 import { createOAuth, cookie, hash, setCookie } from './lib/oauth.js';
 import { begin, next, normalizeAccount } from './lib/scanner.js';
+import { createModel, createChat } from './lib/model.js';
 
 export async function createApplication(config, { fetch: transport = globalThis.fetch, now = Date.now } = {}) {
   const origin = new URL(config.origin).origin;
   const store = await openStore(config.databaseUrl);
   const oauth = createOAuth({ store, fetch:transport, origin, clientId:config.clientId, clientSecret:config.clientSecret, now });
   const codes = { authRequired:401, forbidden:403, accountNotAllowed:400, oauthFailed:400, authUnavailable:503,
-    invalidAccount:400, unsupportedAccount:422, identityChanged:409, notFound:404, tooLarge:422, rateLimit:429, github:502, offline:503 };
+    invalidMessage:400, modelBusy:503, modelUnavailable:503, invalidAccount:400, unsupportedAccount:422, identityChanged:409, notFound:404, tooLarge:422, rateLimit:429, github:502, offline:503 };
   async function github(path) {
     let r;
     try { r = await transport('https://api.github.com'+path, { signal:AbortSignal.timeout(12000), headers:{
@@ -24,14 +25,12 @@ export async function createApplication(config, { fetch: transport = globalThis.
     if (!r.ok) throw new Error('github');
     return r.json();
   }
-  const ai = { ...config.ai, async send(request) {
-    const r = await transport(request.url, {method:request.method,headers:request.headers,body:request.body,signal:AbortSignal.timeout(request.timeout*1000)});
-    return {statusCode:r.status,json:await r.json()};
-  } };
-  async function body(req) {
-    let size=0, result='';
-    for await (const chunk of req) { size+=chunk.length; if (size>512) throw new Error('accountNotAllowed'); result+=chunk; }
-    try { return result ? JSON.parse(result) : {}; } catch { throw new Error('accountNotAllowed'); }
+  const ai = createModel(config.ai, transport);
+  const chat = createChat(ai, now);
+  async function body(req, limit=512, code='accountNotAllowed') {
+    let size=0; const chunks=[];
+    for await (const chunk of req) { size+=chunk.length; if (size>limit) throw new Error(code); chunks.push(chunk); }
+    try { return size ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}; } catch { throw new Error(code); }
   }
   function json(res,status,data) {
     res.writeHead(status, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
@@ -45,12 +44,22 @@ export async function createApplication(config, { fetch: transport = globalThis.
       const url = new URL(req.url,origin), path=url.pathname, method=req.method;
       if (method==='GET' && path==='/api/pig-king/health') { await store.health(); return json(res,200,{status:'ok',database:'mysql',oauthConfigured:oauth.enabled}); }
       if (method==='GET' && path==='/api/pig-king/auth/login') {
-        try { const start=await oauth.start(); return redirect(res,start.url,[start.cookie]); }
+        try {
+          const start=await oauth.start();
+          const state=new URL(start.url).searchParams.get('state');
+          const requested=url.searchParams.get('returnTo') || '/pig-king';
+          const target=state+':'+(/^\/[a-z-]*$/.test(requested) ? requested : '/pig-king');
+          return redirect(res,start.url,[start.cookie,setCookie('pig_return',target,600,oauth.secure)]);
+        }
         catch(e) { return redirect(res,origin+'/pig-king?pig_auth='+ (e.message==='authUnavailable'?'authUnavailable':'offline')); }
       }
       if (method==='GET' && path==='/api/pig-king/auth/callback') {
-        try { return redirect(res,origin+'/pig-king',await oauth.finish(req,url.searchParams)); }
-        catch { return redirect(res,origin+'/pig-king?pig_auth=oauthFailed',[setCookie('pig_oauth','',0,oauth.secure)]); }
+        try {
+          const saved=cookie(req,'pig_return').split(':');
+          const target=saved[0]===url.searchParams.get('state') && /^\/[a-z-]*$/.test(saved[1] || '') ? saved[1] : '/pig-king';
+          return redirect(res,origin+target,[...await oauth.finish(req,url.searchParams),setCookie('pig_return','',0,oauth.secure)]);
+        }
+        catch { return redirect(res,origin+'/pig-king?pig_auth=oauthFailed',[setCookie('pig_oauth','',0,oauth.secure),setCookie('pig_return','',0,oauth.secure)]); }
       }
       if (method==='GET' && path==='/api/pig-king/account-leaderboard') return json(res,200,{items:await store.leaderboard()});
       if (method==='GET' && path.startsWith('/api/pig-king/account-report/')) {
@@ -61,6 +70,19 @@ export async function createApplication(config, { fetch: transport = globalThis.
       const token=cookie(req,'pig_session');
       const user=token ? await store.session(hash(token),now()) : null;
       if (method==='GET' && path==='/api/pig-king/auth/session') return json(res,200,{user,loginEnabled:oauth.enabled});
+      if (method==='GET' && path==='/api/pig-king/chat/session') return json(res,200,{user,loginEnabled:oauth.enabled,model:ai.enabled ? ai.model : null});
+      if (method==='POST' && path==='/api/pig-king/chat') {
+        if (!user) throw new Error('authRequired');
+        if (req.headers.origin !== origin) throw new Error('forbidden');
+        const controller=new AbortController();
+        const cancel=()=>controller.abort();
+        res.once('close',cancel);
+        try {
+          const result=await chat(await body(req,64000,'invalidMessage'),user,controller.signal);
+          if (!res.destroyed) return json(res,200,result);
+          return;
+        } finally { res.off('close',cancel); }
+      }
       if (method==='POST' && ['/api/pig-king/account-scan','/api/pig-king/auth/logout'].includes(path)) {
         if (!user) throw new Error('authRequired');
         if (req.headers.origin !== origin) throw new Error('forbidden');
@@ -80,7 +102,7 @@ export async function createApplication(config, { fetch: transport = globalThis.
       }
       // Retired anonymous repository APIs must not bypass the login gate.
       return json(res,404,{code:'notFound'});
-    } catch(e) { return json(res,codes[e.message] || 503,{code:codes[e.message] ? e.message : 'offline',...(e.message==='rateLimit'?{retryAfter:e.retryAfter || 5}:{})}); }
+    } catch(e) { if (res.destroyed) return; return json(res,codes[e.message] || 503,{code:codes[e.message] ? e.message : 'offline',...(e.message==='rateLimit'?{retryAfter:e.retryAfter || 5}:{})}); }
   }
   return { handler, close:()=>store.close(), importLegacy:reports=>store.importLegacy(reports) };
 }

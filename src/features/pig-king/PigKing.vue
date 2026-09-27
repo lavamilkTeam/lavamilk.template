@@ -2,14 +2,13 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import { getAccountLeaderboard, getAccountReport, scanAccount, getSession, loginGitHub, logoutGitHub } from './api.js';
+import { useGitHubSession } from '../../composables/useGitHubSession.js';
+import { getAccountLeaderboard, getAccountReport, scanAccount } from './api.js';
 
 const { t, locale } = useI18n();
 const route = useRoute();
 const router = useRouter();
-const user = ref(null);
-const authLoading = ref(true);
-const loginEnabled = ref(false);
+const { user, loading: authLoading, loginEnabled, login: loginGitHub, logout: logoutGitHub } = useGitHubSession();
 const loading = ref(false);
 const error = ref('');
 const report = ref(null);
@@ -64,11 +63,6 @@ async function showReport(item) {
   finally { loading.value = false; }
 }
 
-async function refreshSession() {
-  try { const session = await getSession(); user.value = session.user; loginEnabled.value = session.loginEnabled; }
-  catch (_) { error.value = 'offline'; }
-  finally { authLoading.value = false; }
-}
 async function logout() {
   try { await logoutGitHub(); user.value = null; report.value = null; }
   catch (_) { error.value = 'offline'; }
@@ -81,7 +75,7 @@ onMounted(() => {
     delete query.pig_auth;
     router.replace({ query });
   }
-  refreshSession(); refreshBoard();
+  refreshBoard();
 });
 </script>
 
@@ -108,7 +102,7 @@ onMounted(() => {
           <button type="button" class="pig-text-button" :disabled="loading" @click="logout">{{ t('pig.logout') }}</button>
         </div>
         <div v-else class="pig-input-row">
-          <button class="pig-primary" type="button" :disabled="!loginEnabled" @click="loginGitHub">{{ t('pig.githubLogin') }}</button>
+          <button class="pig-primary" type="button" :disabled="!loginEnabled" @click="loginGitHub('/pig-king')">{{ t('pig.githubLogin') }}</button>
           <span v-if="!loginEnabled" class="pig-hint">{{ t('pig.errors.authUnavailable') }}</span>
         </div>
         <p v-if="loading" role="status" class="pig-hint">{{ t(`pig.progress.${progress.phase}`, { count: progress.repositories, processed: progress.processed || 0 }) }}</p>
