@@ -1,7 +1,8 @@
-name: Repository checks
+name: Check and deploy
 on:
   push:
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -40,9 +41,52 @@ jobs:
       - run: npm ci --prefix apps/ai-agent
       - run: npx playwright install --with-deps chromium
       - run: npm run check:all
+      - run: python3 ops/deploy/package.py release.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ github.sha }}
+          path: release.tar.gz
+          retention-days: 7
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: browser-test-results
           path: test-results/
           if-no-files-found: ignore
+
+  deploy:
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://lavamilk.club
+    concurrency:
+      group: lavamilk-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-${{ github.sha }}
+      - name: Deploy verified artifact
+        env:
+          DEPLOY_KEY: ${{ secrets.LAVAMILK_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.LAVAMILK_KNOWN_HOSTS }}
+          COMMIT: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_KEY" || { echo 'Missing LAVAMILK_DEPLOY_KEY secret'; exit 1; }
+          test -n "$KNOWN_HOSTS" || { echo 'Missing LAVAMILK_KNOWN_HOSTS secret'; exit 1; }
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          trap 'rm -f "$HOME/.ssh/deploy_key" "$HOME/.ssh/deploy_hosts"' EXIT
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/deploy_hosts"
+          ssh -T -i "$HOME/.ssh/deploy_key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/deploy_hosts" \
+            -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+            root@45.192.97.209 "deploy $COMMIT $RUN_NUMBER" < release.tar.gz

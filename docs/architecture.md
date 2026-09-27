@@ -27,3 +27,7 @@ PocketBase `.pb.js` 钩子中的动态 `require(__hooks + ...)` 是框架运行�
 - `npm run check:all`：以上完整流程；GitHub Actions 对 push 和 pull request 执行，MySQL 使用独立 CI service，不能用跳过的集成测试冒充通过。
 
 边界规则修改后，应临时从模块外和模块 tests 中导入 lib，确认检查失败，撤销临时文件后再次检查。不能仅用一次正常通过证明规则有效。
+
+## 发布边界
+
+`ops/deploy/package.py` 只打包前端构建结果和 Git 跟踪的后端运行文件；`ops/deploy/deploy.py` 是部署模块的公开入口，独立安装在服务器，不从发布包执行运维脚本。部署模块不被应用源码导入。Python 测试通过其公开入口覆盖坏包、路径穿越、迁移拦截和实际文件回滚；服务命令与 HTTP 检查在测试中替换。`npm run test:deploy` 已加入 `check:all`。部署不执行数据库迁移、CMS 同步或修改服务凭据，配置步骤见 [deployment-cicd.md](deployment-cicd.md)。

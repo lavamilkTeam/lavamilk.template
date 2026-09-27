@@ -388,8 +388,8 @@
   "content": {
     "site": {
       "name": "Lavamilk",
-      "heroTitle": "让软件与硬件的想法，在这里交流、生长。",
-      "heroSubtitle": "一个开放的软件与硬件交流社区。分享项目、讨论技术，与开发者和硬件爱好者一起探索、动手创造",
+      "heroTitle": "更棒的面向于个人极客或小型企业的桌面级 SMT 设备",
+      "heroSubtitle": "Lavamilk 是岩崎世纪旗下的开源工具研发团队，你可以自己制作开源的 SMT 设备或者加入研发，并使用其快速进行 SMT 打样贴片。",
       "footerBlurb": "在边缘网络上构建、部署与扩展应用的开发者平台。"
     },
     "features": [

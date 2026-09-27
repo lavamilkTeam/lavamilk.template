@@ -23,3 +23,8 @@ pocketbase/pb_public
 # Isolated AI chat template build
 apps/ai-agent/dist/
 apps/ai-agent/.nuxt/
+
+# Deployment validation / release artifacts
+__pycache__/
+*.pyc
+/release.tar.gz

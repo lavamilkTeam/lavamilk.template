@@ -17,8 +17,9 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "vue-tsc --noEmit && npm run typecheck --prefix apps/ai-agent",
     "check": "npm run lint && npm run typecheck && npm run lint:boundaries && npm run test:unit && npm run build",
-    "check:all": "npm run check && npm run test:integration && npm run test:e2e",
-    "dev:agent": "npm run dev --prefix apps/ai-agent -- --host 127.0.0.1 --port 5174 --strictPort"
+    "check:all": "npm run check && npm run test:deploy && npm run test:integration && npm run test:e2e",
+    "dev:agent": "npm run dev --prefix apps/ai-agent -- --host 127.0.0.1 --port 5174 --strictPort",
+    "test:deploy": "python3 -m unittest discover -s ops/deploy/tests -v"
   },
   "dependencies": {
     "vue": "^3.5.13",

@@ -388,8 +388,8 @@
   "content": {
     "site": {
       "name": "Lavamilk",
-      "heroTitle": "A place for software and hardware ideas to meet and grow.",
-      "heroSubtitle": "An open community for software and hardware. Share projects, discuss technology, and explore and create with developers and hardware enthusiasts",
+      "heroTitle": "Better desktop-grade SMT equipment for individual geeks and small businesses",
+      "heroSubtitle": "Lavamilk is the open-source tooling R&D team under Iwasaki Century (岩崎世纪). Build your own open-source SMT equipment or join the R&D, and use it for fast SMT prototyping and pick-and-place.",
       "footerBlurb": "The developer platform to build, deploy, and scale your apps on the edge."
     },
     "features": [
