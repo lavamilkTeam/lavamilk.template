@@ -79,14 +79,16 @@ test('failed refresh retains the displayed report and the leaderboard', async ({
   await expect(page.locator('.pig-rank-list')).toContainText('demo');
 });
 
-test('AI agent follows Community, loads its local template and keeps sending unavailable', async ({ page }) => {
+test('AI agent opens from Community, loads its local template and keeps sending unavailable', async ({ page }) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   const navigation = page.locator('header nav:visible');
-  await expect(navigation.locator('.community-menu + a')).toHaveText('AI Agents');
+  await navigation.getByRole('button', { name: 'Community', exact: true }).click();
   await navigation.getByRole('link', { name: 'AI Agents' }).click();
   await expect(page).toHaveURL(/\/ai-agent$/);
+  await expect(navigation.getByRole('button', { name: 'Community', exact: true })).toHaveAttribute('aria-expanded', 'false');
+  await expect(navigation.getByRole('button', { name: 'Community', exact: true })).toHaveClass(/community-active/);
   const chat = page.frameLocator('iframe[title="AI Agents"]');
   await expect(chat.getByRole('heading', { name: 'What shall we work on today?' })).toBeVisible();
   await chat.getByRole('button', { name: 'Help me review some code' }).click();
@@ -104,6 +106,7 @@ test('AI agent supports Chinese mobile navigation without horizontal overflow', 
   await page.goto('/');
   await page.getByRole('button', { name: 'Menu', exact: true }).click();
   await page.locator('header select:visible').selectOption('zh-CN');
+  await page.getByRole('button', { name: '社区', exact: true }).click();
   await page.getByRole('link', { name: 'AI智能体', exact: true }).click();
   await expect(page.locator('header nav:visible')).toHaveCount(0);
   const chat = page.frameLocator('iframe[title="AI智能体"]');

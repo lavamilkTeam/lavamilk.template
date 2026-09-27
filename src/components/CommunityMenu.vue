@@ -38,6 +38,7 @@ onUnmounted(() => document.removeEventListener('pointerdown', closeOutside));
       <RouterLink :to="{ name: 'pig-king' }" class="community-option" @click="expanded = false">{{ t('nav.pigKing') }}</RouterLink>
       <a v-if="communityUrl" :href="communityUrl" class="community-option" target="_blank" rel="noopener noreferrer" @click="expanded = false">{{ t('nav.lavapiggy') }}</a>
       <button v-else type="button" class="community-option" disabled>{{ t('nav.lavapiggy') }}</button>
+      <RouterLink :to="{ name: 'ai-agent' }" class="community-option" @click="expanded = false">{{ t('nav.aiAgent') }}</RouterLink>
     </div>
   </div>
 </template>

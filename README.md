@@ -134,6 +134,6 @@ cd pocketbase && unzip -o /tmp/pb.zip && chmod +x pocketbase
 
 ### AI智能体（界面预览）
 
-导航中的“AI智能体”进入 `/ai-agent`，展示基于 [Nuxt UI Chat](https://github.com/nuxt-ui-templates/chat-vue) 的独立聊天界面。账户和模型接入留待配置；当前发送按钮禁用，不产生模拟回复。模板 MIT 许可见 `apps/ai-agent/LICENSE`。
+导航“社区”菜单中的“AI智能体”进入 `/ai-agent`，展示基于 [Nuxt UI Chat](https://github.com/nuxt-ui-templates/chat-vue) 的独立聊天界面。账户和模型接入留待配置；当前发送按钮禁用，不产生模拟回复。模板 MIT 许可见 `apps/ai-agent/LICENSE`。
 
 首次执行 `npm ci --prefix apps/ai-agent`。本地开发分别运行 `npm run dev` 和 `npm run dev:agent`（5174），从官网 5173 访问。`npm run build` 会一并构建官网和聊天应用，将聊天静态资源输出到 `dist/ai-chat/`。生产无需新增后端服务。

@@ -90,7 +90,6 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
             <nav class="hidden items-center gap-6 lg:flex">
               <RouterLink v-for="n in NAV" :key="n.label" :to="{ name: n.p }" :class="'cursor-pointer text-[13px] transition-colors hover:text-foreground ' + (page === n.p ? 'text-foreground' : 'text-muted-foreground')">{{ n.label }}</RouterLink>
               <CommunityMenu :active="false" :community-url="LAVAPIGGY_URL" />
-              <RouterLink :to="{ name: 'ai-agent' }" class="cursor-pointer text-[13px] text-muted-foreground transition-colors hover:text-foreground">{{ t('nav.aiAgent') }}</RouterLink>
             </nav>
           </div>
           <div class="flex items-center gap-2">
@@ -105,7 +104,6 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
         <nav v-if="open" class="space-y-1 border-t border-border px-6 py-3 lg:hidden">
           <RouterLink v-for="n in NAV" :key="n.label" :to="{ name: n.p }" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted">{{ n.label }}</RouterLink>
           <CommunityMenu mobile :active="false" :community-url="LAVAPIGGY_URL" />
-          <RouterLink :to="{ name: 'ai-agent' }" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted">{{ t('nav.aiAgent') }}</RouterLink>
           <div class="pt-1"><LanguageSwitcher /></div>
         </nav>
       </header>
@@ -173,8 +171,7 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
             </RouterLink>
             <nav class="hidden items-center gap-6 lg:flex">
               <RouterLink v-for="n in NAV" :key="n.label" :to="{ name: n.p }" :class="'cursor-pointer text-[13px] transition-colors hover:text-foreground ' + (page === n.p ? 'text-foreground' : 'text-muted-foreground')">{{ n.label }}</RouterLink>
-              <CommunityMenu :active="page === 'pig-king'" :community-url="LAVAPIGGY_URL" />
-              <RouterLink :to="{ name: 'ai-agent' }" class="cursor-pointer text-[13px] text-muted-foreground transition-colors hover:text-foreground" :class="{ 'text-foreground': page === 'ai-agent' }">{{ t('nav.aiAgent') }}</RouterLink>
+              <CommunityMenu :active="page === 'pig-king' || page === 'ai-agent'" :community-url="LAVAPIGGY_URL" />
             </nav>
           </div>
           <div class="flex items-center gap-2">
@@ -188,8 +185,7 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
         </div>
         <nav v-if="open" class="space-y-1 border-t border-border px-6 py-3 lg:hidden">
           <RouterLink v-for="n in NAV" :key="n.label" :to="{ name: n.p }" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted">{{ n.label }}</RouterLink>
-          <CommunityMenu mobile :active="page === 'pig-king'" :community-url="LAVAPIGGY_URL" />
-          <RouterLink :to="{ name: 'ai-agent' }" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted" :class="{ 'text-foreground': page === 'ai-agent' }">{{ t('nav.aiAgent') }}</RouterLink>
+          <CommunityMenu mobile :active="page === 'pig-king' || page === 'ai-agent'" :community-url="LAVAPIGGY_URL" />
           <div class="pt-1"><LanguageSwitcher /></div>
         </nav>
       </header>
