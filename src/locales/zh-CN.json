@@ -1,5 +1,8 @@
 {
-  "notFound": {"message": "找不到这个页面。", "backHome": "返回首页"},
+  "notFound": {
+    "message": "找不到这个页面。",
+    "backHome": "返回首页"
+  },
   "nav": {
     "community": "社区",
     "pigKing": "猪猪榜",
@@ -7,7 +10,8 @@
     "product": "产品",
     "docs": "文档",
     "pricing": "定价",
-    "changelog": "更新日志"
+    "changelog": "更新日志",
+    "aiAgent": "AI智能体"
   },
   "pig": {
     "kicker": "认真写代码，快乐当猪猪",

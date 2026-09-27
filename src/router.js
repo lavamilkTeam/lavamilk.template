@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import Lavamilk from './components/Lavamilk.vue';
 
 const pages = ['home', 'features', 'docs', 'pricing', 'changelog', 'about', 'blog', 'post',
-  'careers', 'contact', 'privacy', 'terms', 'security', 'pig-king'];
+  'careers', 'contact', 'privacy', 'terms', 'security', 'pig-king', 'ai-agent'];
 
 export const router = createRouter({
   history: createWebHistory(),

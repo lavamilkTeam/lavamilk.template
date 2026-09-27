@@ -127,6 +127,13 @@ cd pocketbase && unzip -o /tmp/pb.zip && chmod +x pocketbase
 
 页面已支持 `/features`、`/docs`、`/pig-king` 等独立 URL、直接访问、刷新及浏览器前进/后退。生产 Nginx 必须合并 `ops/nginx/lavamilk-spa.conf`，具体见 [部署文档](docs/deployment-lavamilk.md#2026-09-27-url-路由发布要求仓库配置尚未部署)。本地 Vite 开发/预览自动提供 history fallback。
 
-使用 Node 22.16+，运行 `npm ci`、`npm ci --prefix server`、`npx playwright install chromium`，然后执行 `npm run check:all`。完整流程包含 lint、前端/CMS 类型检查、模块边界、单元测试、构建、真实 MySQL 集成和浏览器交互测试；本地集成测试需要 Docker，CI 自动提供测试数据库。详细范围见 [架构与检查](docs/architecture.md)。
+使用 Node 22.16+，运行 `npm ci`、`npm ci --prefix server`、`npm ci --prefix apps/ai-agent`、`npx playwright install chromium`，然后执行 `npm run check:all`。完整流程包含 lint、前端/CMS 类型检查、模块边界、单元测试、构建、真实 MySQL 集成和浏览器交互测试；本地集成测试需要 Docker，CI 自动提供测试数据库。详细范围见 [架构与检查](docs/architecture.md)。
 
 `pb:sync` 现在要求显式设置 `PB_ADMIN_EMAIL` 和 `PB_ADMIN_PASSWORD`，不再回退到默认密码。同步前完整读取并验证所有集合，读取失败不写入；写入阶段失败会退出并返回非零状态，可能已完成部分更新，排除故障后可重跑。旧 `pb:setup` 仍是破坏性重建脚本，不用于发布或日常内容更新。
+
+
+### AI智能体（界面预览）
+
+导航中的“AI智能体”进入 `/ai-agent`，展示基于 [Nuxt UI Chat](https://github.com/nuxt-ui-templates/chat-vue) 的独立聊天界面。账户和模型接入留待配置；当前发送按钮禁用，不产生模拟回复。模板 MIT 许可见 `apps/ai-agent/LICENSE`。
+
+首次执行 `npm ci --prefix apps/ai-agent`。本地开发分别运行 `npm run dev` 和 `npm run dev:agent`（5174），从官网 5173 访问。`npm run build` 会一并构建官网和聊天应用，将聊天静态资源输出到 `dist/ai-chat/`。生产无需新增后端服务。

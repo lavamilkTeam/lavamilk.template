@@ -7,6 +7,7 @@ import { useSiteContent } from "../composables/useSiteContent";
 import LanguageSwitcher from "./LanguageSwitcher.vue";
 import CommunityMenu from "./CommunityMenu.vue";
 
+const AiAgent = defineAsyncComponent(() => import('../features/ai-agent/AiAgent.vue'));
 const PigKing = defineAsyncComponent(() => import('../features/pig-king/PigKing.vue'));
 
 defineProps({ page: { type: String, default: 'home' }, onSignIn: Function, onSignUp: Function });
@@ -89,6 +90,7 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
             <nav class="hidden items-center gap-6 lg:flex">
               <RouterLink v-for="n in NAV" :key="n.label" :to="{ name: n.p }" :class="'cursor-pointer text-[13px] transition-colors hover:text-foreground ' + (page === n.p ? 'text-foreground' : 'text-muted-foreground')">{{ n.label }}</RouterLink>
               <CommunityMenu :active="false" :community-url="LAVAPIGGY_URL" />
+              <RouterLink :to="{ name: 'ai-agent' }" class="cursor-pointer text-[13px] text-muted-foreground transition-colors hover:text-foreground">{{ t('nav.aiAgent') }}</RouterLink>
             </nav>
           </div>
           <div class="flex items-center gap-2">
@@ -103,6 +105,7 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
         <nav v-if="open" class="space-y-1 border-t border-border px-6 py-3 lg:hidden">
           <RouterLink v-for="n in NAV" :key="n.label" :to="{ name: n.p }" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted">{{ n.label }}</RouterLink>
           <CommunityMenu mobile :active="false" :community-url="LAVAPIGGY_URL" />
+          <RouterLink :to="{ name: 'ai-agent' }" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted">{{ t('nav.aiAgent') }}</RouterLink>
           <div class="pt-1"><LanguageSwitcher /></div>
         </nav>
       </header>
@@ -171,6 +174,7 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
             <nav class="hidden items-center gap-6 lg:flex">
               <RouterLink v-for="n in NAV" :key="n.label" :to="{ name: n.p }" :class="'cursor-pointer text-[13px] transition-colors hover:text-foreground ' + (page === n.p ? 'text-foreground' : 'text-muted-foreground')">{{ n.label }}</RouterLink>
               <CommunityMenu :active="page === 'pig-king'" :community-url="LAVAPIGGY_URL" />
+              <RouterLink :to="{ name: 'ai-agent' }" class="cursor-pointer text-[13px] text-muted-foreground transition-colors hover:text-foreground" :class="{ 'text-foreground': page === 'ai-agent' }">{{ t('nav.aiAgent') }}</RouterLink>
             </nav>
           </div>
           <div class="flex items-center gap-2">
@@ -185,13 +189,15 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
         <nav v-if="open" class="space-y-1 border-t border-border px-6 py-3 lg:hidden">
           <RouterLink v-for="n in NAV" :key="n.label" :to="{ name: n.p }" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted">{{ n.label }}</RouterLink>
           <CommunityMenu mobile :active="page === 'pig-king'" :community-url="LAVAPIGGY_URL" />
+          <RouterLink :to="{ name: 'ai-agent' }" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted" :class="{ 'text-foreground': page === 'ai-agent' }">{{ t('nav.aiAgent') }}</RouterLink>
           <div class="pt-1"><LanguageSwitcher /></div>
         </nav>
       </header>
 
       <main class="w-full">
         <!-- FEATURES -->
-        <PigKing v-if="page === 'pig-king'" />
+        <AiAgent v-if="page === 'ai-agent'" />
+        <PigKing v-else-if="page === 'pig-king'" />
         <template v-else-if="page === 'features'">
           <section class="border-b border-border px-6 py-16 text-center sm:px-16 lg:px-28">
             <h1 class="mx-auto max-w-3xl text-4xl font-bold tracking-[-0.03em] sm:text-5xl">{{ t('page.features.title') }}</h1>
@@ -389,7 +395,7 @@ lavamilk deploy</code></pre>
     </template>
 
     <!-- FOOTER -->
-    <footer class="border-t border-border bg-card">
+    <footer v-if="page !== 'ai-agent'" class="border-t border-border bg-card">
       <div class="w-full px-6 py-14">
         <div class="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div class="lg:col-span-2">

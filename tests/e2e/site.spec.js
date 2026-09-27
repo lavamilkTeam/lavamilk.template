@@ -78,3 +78,37 @@ test('failed refresh retains the displayed report and the leaderboard', async ({
   await expect(page.locator('.pig-report h2')).toContainText('demo');
   await expect(page.locator('.pig-rank-list')).toContainText('demo');
 });
+
+test('AI agent follows Community, loads its local template and keeps sending unavailable', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/');
+  const navigation = page.locator('header nav:visible');
+  await expect(navigation.locator('.community-menu + a')).toHaveText('AI Agents');
+  await navigation.getByRole('link', { name: 'AI Agents' }).click();
+  await expect(page).toHaveURL(/\/ai-agent$/);
+  const chat = page.frameLocator('iframe[title="AI Agents"]');
+  await expect(chat.getByRole('heading', { name: 'What shall we work on today?' })).toBeVisible();
+  await chat.getByRole('button', { name: 'Help me review some code' }).click();
+  await expect(chat.getByRole('textbox')).toHaveValue('Help me review some code');
+  await expect(chat.getByRole('button', { name: 'Model connection pending' })).toBeDisabled();
+  await chat.getByRole('button', { name: 'New chat', exact: true }).click();
+  await expect(chat.getByRole('textbox')).toHaveValue('');
+  await page.reload();
+  await expect(chat.getByRole('heading', { name: 'What shall we work on today?' })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('AI agent supports Chinese mobile navigation without horizontal overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Menu', exact: true }).click();
+  await page.locator('header select:visible').selectOption('zh-CN');
+  await page.getByRole('link', { name: 'AI智能体', exact: true }).click();
+  await expect(page.locator('header nav:visible')).toHaveCount(0);
+  const chat = page.frameLocator('iframe[title="AI智能体"]');
+  await expect(chat.getByRole('heading', { name: '今天，想一起做点什么？' })).toBeVisible();
+  await expect(chat.getByRole('status')).toContainText('模型接入待配置');
+  const body = chat.locator('body');
+  expect(await body.evaluate(el => el.scrollWidth <= window.innerWidth)).toBe(true);
+});

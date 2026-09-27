@@ -34,8 +34,10 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             server/package-lock.json
+            apps/ai-agent/package-lock.json
       - run: npm ci
       - run: npm ci --prefix server
+      - run: npm ci --prefix apps/ai-agent
       - run: npx playwright install --with-deps chromium
       - run: npm run check:all
       - uses: actions/upload-artifact@v4

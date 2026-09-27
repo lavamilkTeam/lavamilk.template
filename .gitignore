@@ -19,3 +19,7 @@ pocketbase/pb_public
 # Browser test artifacts
 /test-results/
 /playwright-report/
+
+# Isolated AI chat template build
+apps/ai-agent/dist/
+apps/ai-agent/.nuxt/

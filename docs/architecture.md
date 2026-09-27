@@ -2,6 +2,8 @@
 
 ## 模块
 
+- `src/features/ai-agent/AiAgent.vue` 是官网 `/ai-agent` 页面入口，通过同源 iframe 展示 `/ai-chat/`。`apps/ai-agent` 独立构建 Nuxt UI Chat 模板，不跨应用导入源码或服务端模块；复制构建结果由 `scripts/copy-ai-agent.mjs` 完成。账户和模型接入待后续配置，目前不发送消息、不存储会话或 API Key。
+
 - `src/router.js` 声明页面 URL、历史模式及旧 `/#pig-king` 登录链接兼容。App 通过 RouterView 渲染；页面与菜单使用 Vue Router 公共接口，不反向导入路由配置。
 - `src/components` 为页面布局和可复用 UI。`Lavamilk.vue` 暂时保留模板的多页面布局，不在本次修复中整体重写。
 - `src/features/pig-king/PigKing.vue` 是社区页面入口；`api.js` 是浏览器 HTTP 边界。
@@ -15,7 +17,7 @@ PocketBase `.pb.js` 钩子中的动态 `require(__hooks + ...)` 是框架运行�
 
 ## 检查
 
-使用 Node 22.16+，先执行 `npm ci` 和 `npm ci --prefix server`。
+使用 Node 22.16+，先执行 `npm ci` 和 `npm ci --prefix server`、`npm ci --prefix apps/ai-agent`。
 
 - `npm run check`：ESLint（浏览器、服务端、脚本、钩子、测试）、Vue/JS 类型检查、依赖边界、单元测试、生产构建。
 - `npm run typecheck`：检查全部前端 JS/Vue 和 CMS 同步模块/CLI。现有后端动态 JS 由 lint、公共接口测试和真实数据库集成测试覆盖；尚未迁移为完整严格类型系统。

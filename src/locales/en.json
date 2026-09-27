@@ -1,5 +1,8 @@
 {
-  "notFound": {"message": "This page could not be found.", "backHome": "Back to home"},
+  "notFound": {
+    "message": "This page could not be found.",
+    "backHome": "Back to home"
+  },
   "nav": {
     "community": "Community",
     "pigKing": "Pig Rankings",
@@ -7,7 +10,8 @@
     "product": "Product",
     "docs": "Docs",
     "pricing": "Pricing",
-    "changelog": "Changelog"
+    "changelog": "Changelog",
+    "aiAgent": "AI Agents"
   },
   "pig": {
     "kicker": "SERIOUS CODE. SILLY SCORES.",

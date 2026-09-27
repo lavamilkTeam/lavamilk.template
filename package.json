@@ -6,18 +6,19 @@
   "scripts": {
     "test": "npm run test:unit",
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && npm run build --prefix apps/ai-agent && node scripts/copy-ai-agent.mjs",
     "preview": "vite preview",
     "pb:setup": "node scripts/pocketbase-setup.mjs",
     "pb:sync": "node scripts/pocketbase-sync.mjs",
-    "lint:boundaries": "depcruise server src pocketbase/pb_hooks scripts --config .dependency-cruiser.cjs",
+    "lint:boundaries": "depcruise apps/ai-agent/src server src pocketbase/pb_hooks scripts --config .dependency-cruiser.cjs",
     "test:unit": "node --test pocketbase/pb_hooks/pig-king/tests/*.test.cjs pocketbase/pb_hooks/pig-account/tests/*.test.cjs scripts/cms-sync/tests/*.test.mjs",
     "test:integration": "node scripts/test-mysql.mjs",
     "test:e2e": "playwright test",
     "lint": "eslint . --max-warnings=0",
-    "typecheck": "vue-tsc --noEmit",
+    "typecheck": "vue-tsc --noEmit && npm run typecheck --prefix apps/ai-agent",
     "check": "npm run lint && npm run typecheck && npm run lint:boundaries && npm run test:unit && npm run build",
-    "check:all": "npm run check && npm run test:integration && npm run test:e2e"
+    "check:all": "npm run check && npm run test:integration && npm run test:e2e",
+    "dev:agent": "npm run dev --prefix apps/ai-agent -- --host 127.0.0.1 --port 5174 --strictPort"
   },
   "dependencies": {
     "vue": "^3.5.13",
