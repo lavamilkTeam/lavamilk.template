@@ -110,7 +110,7 @@ onUnmounted(() => { stop(); window.removeEventListener('focus', loadSession); au
 <template>
   <UApp :toaster="{ position: 'top-right' }">
     <UDashboardGroup unit="rem">
-      <UDashboardSidebar v-model:open="sidebarOpen" :min-size="12" :default-size="16" collapsible resizable class="border-r-0 bg-muted/40 py-3">
+      <UDashboardSidebar v-model:open="sidebarOpen" :min-size="12" :default-size="16" collapsible resizable class="chat-sidebar bg-muted/40 py-3">
         <template #header="{ collapsed }">
           <span v-if="!collapsed" class="flex items-center gap-2 font-semibold text-highlighted">
             <span class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"><UIcon name="i-lucide-sparkles" class="size-5" /></span>
@@ -135,7 +135,7 @@ onUnmounted(() => { stop(); window.removeEventListener('focus', loadSession); au
       <div class="flex min-w-0 flex-1 overflow-hidden bg-default">
         <UDashboardPanel id="agent-chat" class="min-h-0" :ui="{ body: 'min-h-0 flex-1 overflow-hidden p-0 sm:p-0' }">
           <template #header>
-            <UDashboardNavbar :title="label('AI智能体', 'AI Agents')" class="border-0" :ui="{ right: 'gap-2' }">
+            <UDashboardNavbar :title="label('AI智能体', 'AI Agents')" class="chat-navbar" :ui="{ right: 'gap-2' }">
               <template #right>
                 <UBadge color="neutral" variant="subtle">Gemma</UBadge>
                 <UButton :icon="dark ? 'i-lucide-sun' : 'i-lucide-moon'" color="neutral" variant="ghost" :aria-label="label('切换主题', 'Toggle theme')" @click="colorMode = dark ? 'light' : 'dark'" />
@@ -163,22 +163,24 @@ onUnmounted(() => { stop(); window.removeEventListener('focus', loadSession); au
             </div>
           </template>
           <template #footer>
-            <div class="composer-dock">
-              <div v-if="!checking && !user && loginEnabled" class="mb-3">
-                <UButton to="/api/pig-king/auth/login?returnTo=/ai-agent" target="_top" color="neutral" :label="label('使用 GitHub 登录', 'Sign in with GitHub')" />
+            <div class="composer-divider">
+              <div class="composer-dock">
+                <div v-if="!checking && !user && loginEnabled" class="mb-3">
+                  <UButton to="/api/pig-king/auth/login?returnTo=/ai-agent" target="_top" color="neutral" :label="label('使用 GitHub 登录', 'Sign in with GitHub')" />
+                </div>
+                <div v-if="error" class="mb-3 flex items-center gap-3">
+                  <p role="alert" class="text-sm text-error">{{ error }}</p>
+                  <UButton v-if="!pending" color="neutral" variant="ghost" size="sm" :label="label('重试', 'Retry')" @click="ready ? submit() : loadSession()" />
+                </div>
+                <UChatPrompt v-model="input" class="chat-composer" :disabled="pending" :autofocus="false" :maxrows="6" :placeholder="label('输入你的问题…', 'Ask anything…')" color="neutral" variant="subtle" :ui="{ root: 'rounded-none bg-transparent ring-0 shadow-none', base: 'px-1.5' }" @submit.prevent="submit">
+                  <template #footer>
+                    <span class="flex items-center gap-1.5 text-xs text-muted"><UIcon name="i-lucide-sparkles" class="size-3.5" />{{ model || 'Gemma' }}</span>
+                    <UButton v-if="pending" type="button" icon="i-lucide-square" color="neutral" size="sm" class="rounded-full" :aria-label="label('停止生成', 'Stop generating')" @click="stop" />
+                    <UButton v-else type="submit" :disabled="!ready || !input.trim()" icon="i-lucide-arrow-up" color="neutral" size="sm" class="rounded-full" :aria-label="label('发送', 'Send')" />
+                  </template>
+                </UChatPrompt>
+                <p role="status" class="mt-2 text-center text-[11px] leading-relaxed text-dimmed">{{ status }}</p>
               </div>
-              <div v-if="error" class="mb-3 flex items-center gap-3">
-                <p role="alert" class="text-sm text-error">{{ error }}</p>
-                <UButton v-if="!pending" color="neutral" variant="ghost" size="sm" :label="label('重试', 'Retry')" @click="ready ? submit() : loadSession()" />
-              </div>
-              <UChatPrompt v-model="input" class="chat-composer" :disabled="pending" :autofocus="false" :maxrows="6" :placeholder="label('输入你的问题…', 'Ask anything…')" color="neutral" variant="outline" :ui="{ base: 'px-1.5' }" @submit.prevent="submit">
-                <template #footer>
-                  <span class="flex items-center gap-1.5 text-xs text-muted"><UIcon name="i-lucide-sparkles" class="size-3.5" />{{ model || 'Gemma' }}</span>
-                  <UButton v-if="pending" type="button" icon="i-lucide-square" color="neutral" size="sm" class="rounded-full" :aria-label="label('停止生成', 'Stop generating')" @click="stop" />
-                  <UButton v-else type="submit" :disabled="!ready || !input.trim()" icon="i-lucide-arrow-up" color="neutral" size="sm" class="rounded-full" :aria-label="label('发送', 'Send')" />
-                </template>
-              </UChatPrompt>
-              <p role="status" class="mt-2 text-center text-[11px] leading-relaxed text-dimmed">{{ status }}</p>
             </div>
           </template>
         </UDashboardPanel>
@@ -191,12 +193,18 @@ onUnmounted(() => { stop(); window.removeEventListener('focus', loadSession); au
 .conversation-scroll { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable both-edges; }
 .conversation-content { width: 100%; max-width: 800px; margin: 0 auto; padding: 28px 28px 48px; }
 .conversation-empty { min-height: 100%; display: flex; align-items: center; padding-bottom: 12vh; }
-.conversation-messages { display: flex; flex-direction: column; gap: 32px; }
+.chat-sidebar { border-right: 1px solid var(--ui-border); box-shadow: 2px 0 5px rgb(0 0 0 / 3%); }
+.chat-navbar { border-bottom: 1px solid var(--ui-border); box-shadow: 0 2px 5px rgb(0 0 0 / 3%); z-index: 1; }
+.conversation-messages { display: flex; flex-direction: column; gap: 24px; }
+.conversation-messages > article + article { position: relative; padding-top: 24px; }
+.conversation-messages > article + article::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--ui-border); box-shadow: 0 2px 4px rgb(0 0 0 / 4%); }
 .message-user { display: flex; justify-content: flex-end; scroll-margin-top: 24px; }
-.user-text { max-width: 85%; width: fit-content; margin: 0; padding: 10px 16px; border-radius: 18px; background: var(--ui-bg-elevated); font-size: 15px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.user-text { max-width: 85%; width: fit-content; margin: 0; padding: 0; background: transparent; font-size: 15px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
 .message-assistant { min-width: 0; color: var(--ui-text-highlighted); scroll-margin-top: 24px; }
+.composer-divider { flex-shrink: 0; border-top: 1px solid var(--ui-border); box-shadow: 0 -2px 7px rgb(0 0 0 / 3%); background: var(--ui-bg); }
 .composer-dock { flex-shrink: 0; width: 100%; max-width: 800px; margin: 0 auto; padding: 12px 28px 14px; background: var(--ui-bg); }
-.chat-composer { border: 1px solid var(--ui-border); border-radius: 20px; padding: 10px 12px; box-shadow: 0 2px 8px rgb(0 0 0 / 3%); }
+.chat-composer { border: 0; border-radius: 0; padding: 6px 0; background: transparent; box-shadow: none; }
+.chat-composer:focus-within { box-shadow: none; }
 .thinking-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: breathe 1.5s ease-in-out infinite; }
 @keyframes breathe { 50% { opacity: .3; } }
 @media (max-width: 640px) {
