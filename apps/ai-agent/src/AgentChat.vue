@@ -1,7 +1,8 @@
 <script setup>
 // Dashboard and prompt composition adapted from nuxt-ui-templates/chat-vue (MIT).
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { session, send } from './api.js';
+const ChatMarkdown = defineAsyncComponent(() => import('./ChatMarkdown.vue'));
 import { useColorMode } from '@vueuse/core';
 
 const english = new URLSearchParams(window.location.search).get('lang') === 'en';
@@ -19,6 +20,21 @@ const prompts = [
 ];
 /** @type {import('vue').Ref<{role: string, content: string}[]>} */
 const messages = ref([]);
+/** @type {import('vue').Ref<HTMLElement | null>} */
+const transcript = ref(null);
+const followLatest = ref(true);
+function trackScroll() {
+  const el = transcript.value;
+  if (el) followLatest.value = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+}
+watch(() => messages.value.length, async () => {
+  const follow = followLatest.value;
+  await nextTick();
+  const el = transcript.value;
+  if (!el) return;
+  if (!messages.value.length) { el.scrollTop = 0; followLatest.value = true; }
+  else if (follow) el.querySelector('article:last-of-type')?.scrollIntoView({ block: 'start' });
+});
 /** @type {import('vue').Ref<{login: string} | null>} */
 const user = ref(null);
 const model = ref('');
@@ -59,6 +75,7 @@ async function submit() {
   }
   const request = new AbortController(); controller = request;
   const previous = messages.value;
+  followLatest.value = true;
   messages.value = history; input.value = ''; error.value = ''; truncated.value = false; pending.value = true;
   try {
     const result = await send(history, request.signal);
@@ -93,7 +110,7 @@ onUnmounted(() => { stop(); window.removeEventListener('focus', loadSession); au
 <template>
   <UApp :toaster="{ position: 'top-right' }">
     <UDashboardGroup unit="rem">
-      <UDashboardSidebar v-model:open="sidebarOpen" :min-size="12" :default-size="16" collapsible resizable class="border-r-0 py-3">
+      <UDashboardSidebar v-model:open="sidebarOpen" :min-size="12" :default-size="16" collapsible resizable class="border-r-0 bg-muted/40 py-3">
         <template #header="{ collapsed }">
           <span v-if="!collapsed" class="flex items-center gap-2 font-semibold text-highlighted">
             <span class="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary"><UIcon name="i-lucide-sparkles" class="size-5" /></span>
@@ -115,11 +132,10 @@ onUnmounted(() => { stop(); window.removeEventListener('focus', loadSession); au
           </div>
         </template>
       </UDashboardSidebar>
-      <div class="m-3 flex min-w-0 flex-1 overflow-hidden rounded-xl bg-default shadow-sm ring ring-default lg:ml-0">
-        <UDashboardPanel id="agent-chat" class="min-h-0" :ui="{ body: 'p-0 sm:p-0' }">
+      <div class="flex min-w-0 flex-1 overflow-hidden bg-default">
+        <UDashboardPanel id="agent-chat" class="min-h-0" :ui="{ body: 'min-h-0 flex-1 overflow-hidden p-0 sm:p-0' }">
           <template #header>
-            <UDashboardNavbar :title="label('新对话', 'New conversation')" :ui="{ right: 'gap-2' }">
-              <template #leading><UDashboardSidebarToggle /></template>
+            <UDashboardNavbar :title="label('AI智能体', 'AI Agents')" class="border-0" :ui="{ right: 'gap-2' }">
               <template #right>
                 <UBadge color="neutral" variant="subtle">Gemma</UBadge>
                 <UButton :icon="dark ? 'i-lucide-sun' : 'i-lucide-moon'" color="neutral" variant="ghost" :aria-label="label('切换主题', 'Toggle theme')" @click="colorMode = dark ? 'light' : 'dark'" />
@@ -127,37 +143,42 @@ onUnmounted(() => { stop(); window.removeEventListener('focus', loadSession); au
             </UDashboardNavbar>
           </template>
           <template #body>
-            <UContainer class="flex flex-1 flex-col justify-center gap-6 py-10 sm:gap-8">
-              <div v-if="!messages.length">
-                <div class="mb-5 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><UIcon name="i-lucide-sparkles" class="size-7" /></div>
-                <h1 class="text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">{{ label('今天，想一起做点什么？', 'What shall we work on today?') }}</h1>
+            <div ref="transcript" class="conversation-scroll" @scroll.passive="trackScroll">
+              <div class="conversation-content" :class="{ 'conversation-empty': !messages.length }">
+                <div v-if="!messages.length" class="space-y-7">
+                  <h1 class="text-2xl font-semibold tracking-tight text-highlighted sm:text-3xl">{{ label('今天，想一起做点什么？', 'What shall we work on today?') }}</h1>
+                  <div class="flex flex-wrap gap-2">
+                    <UButton v-for="prompt in prompts" :key="prompt.text" :label="prompt.text" :icon="prompt.icon" color="neutral" variant="outline" size="sm" class="rounded-full" @click="input = prompt.text" />
+                  </div>
+                </div>
+                <div v-else role="log" :aria-label="label('对话消息', 'Chat messages')" aria-live="polite" class="conversation-messages">
+                  <article v-for="(message, index) in messages" :key="index" :class="message.role === 'user' ? 'message-user' : 'message-assistant'" :aria-label="message.role === 'user' ? label('你', 'You') : 'Gemma'">
+                    <p v-if="message.role === 'user'" class="user-text">{{ message.content }}</p>
+                    <ChatMarkdown v-else :content="message.content" />
+                  </article>
+                </div>
+                <div v-if="pending" class="flex items-center gap-2 py-5 text-sm text-muted" aria-hidden="true"><span class="thinking-dot" />{{ label('正在思考', 'Thinking') }}</div>
+                <p v-if="truncated" class="mt-4 text-xs text-muted">{{ label('回答达到长度上限，可以继续追问。', 'The reply reached its length limit. Ask a follow-up to continue.') }}</p>
               </div>
-              <div v-if="messages.length" role="log" :aria-label="label('对话消息', 'Chat messages')" aria-live="polite" class="space-y-5">
-                <article v-for="(message, index) in messages" :key="index" class="rounded-xl p-4" :class="message.role === 'user' ? 'bg-elevated' : 'bg-muted'">
-                  <p class="mb-2 text-xs font-semibold text-muted">{{ message.role === 'user' ? (user?.login || label('你', 'You')) : 'Gemma' }}</p>
-                  <p class="whitespace-pre-wrap break-words text-sm leading-relaxed text-highlighted [overflow-wrap:anywhere]">{{ message.content }}</p>
-                </article>
-              </div>
-              <p v-if="truncated" class="text-xs text-muted">{{ label('回答达到长度上限，可以继续追问。', 'The reply reached its length limit. Ask a follow-up to continue.') }}</p>
-              <UChatPrompt v-model="input" :disabled="pending" :autofocus="false" :placeholder="label('输入你的问题…', 'Ask anything…')" color="neutral" variant="subtle" :ui="{ base: 'px-1.5' }" @submit.prevent="submit">
-                <template #footer>
-                  <span class="flex items-center gap-1.5 text-xs text-muted"><UIcon name="i-lucide-box" class="size-4" />{{ model || 'Gemma' }}</span>
-                  <UButton v-if="pending" type="button" icon="i-lucide-square" color="neutral" size="sm" :aria-label="label('停止生成', 'Stop generating')" @click="stop" />
-                  <UButton v-else type="submit" :disabled="!ready || !input.trim()" icon="i-lucide-arrow-up" color="neutral" size="sm" :aria-label="label('发送', 'Send')" />
-                </template>
-              </UChatPrompt>
-              <div v-if="!messages.length" class="flex flex-wrap gap-2">
-                <UButton v-for="prompt in prompts" :key="prompt.text" :label="prompt.text" :icon="prompt.icon" color="neutral" variant="outline" size="sm" class="rounded-full" :disabled="pending" @click="input = prompt.text" />
-              </div>
-              <div v-if="!checking && !user && loginEnabled">
+            </div>
+          </template>
+          <template #footer>
+            <div class="composer-dock">
+              <div v-if="!checking && !user && loginEnabled" class="mb-3">
                 <UButton to="/api/pig-king/auth/login?returnTo=/ai-agent" target="_top" color="neutral" :label="label('使用 GitHub 登录', 'Sign in with GitHub')" />
               </div>
-              <p v-if="error" role="alert" class="text-sm text-error">{{ error }}</p>
-              <UButton v-if="error && !pending" color="neutral" variant="outline" class="self-start" :label="label('重试', 'Retry')" @click="ready ? submit() : loadSession()" />
-              <p role="status" class="text-xs leading-relaxed text-muted">{{ status }}</p>
-            </UContainer>
-            <div class="pb-4 text-center text-[11px] text-dimmed">
-              <a href="https://github.com/nuxt-ui-templates/chat-vue" target="_blank" rel="noopener noreferrer" class="hover:text-muted">Nuxt UI Chat</a> · Lavamilk
+              <div v-if="error" class="mb-3 flex items-center gap-3">
+                <p role="alert" class="text-sm text-error">{{ error }}</p>
+                <UButton v-if="!pending" color="neutral" variant="ghost" size="sm" :label="label('重试', 'Retry')" @click="ready ? submit() : loadSession()" />
+              </div>
+              <UChatPrompt v-model="input" class="chat-composer" :disabled="pending" :autofocus="false" :maxrows="6" :placeholder="label('输入你的问题…', 'Ask anything…')" color="neutral" variant="outline" :ui="{ base: 'px-1.5' }" @submit.prevent="submit">
+                <template #footer>
+                  <span class="flex items-center gap-1.5 text-xs text-muted"><UIcon name="i-lucide-sparkles" class="size-3.5" />{{ model || 'Gemma' }}</span>
+                  <UButton v-if="pending" type="button" icon="i-lucide-square" color="neutral" size="sm" class="rounded-full" :aria-label="label('停止生成', 'Stop generating')" @click="stop" />
+                  <UButton v-else type="submit" :disabled="!ready || !input.trim()" icon="i-lucide-arrow-up" color="neutral" size="sm" class="rounded-full" :aria-label="label('发送', 'Send')" />
+                </template>
+              </UChatPrompt>
+              <p role="status" class="mt-2 text-center text-[11px] leading-relaxed text-dimmed">{{ status }}</p>
             </div>
           </template>
         </UDashboardPanel>
@@ -165,3 +186,24 @@ onUnmounted(() => { stop(); window.removeEventListener('focus', loadSession); au
     </UDashboardGroup>
   </UApp>
 </template>
+
+<style scoped>
+.conversation-scroll { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable both-edges; }
+.conversation-content { width: 100%; max-width: 800px; margin: 0 auto; padding: 28px 28px 48px; }
+.conversation-empty { min-height: 100%; display: flex; align-items: center; padding-bottom: 12vh; }
+.conversation-messages { display: flex; flex-direction: column; gap: 32px; }
+.message-user { display: flex; justify-content: flex-end; scroll-margin-top: 24px; }
+.user-text { max-width: 85%; width: fit-content; margin: 0; padding: 10px 16px; border-radius: 18px; background: var(--ui-bg-elevated); font-size: 15px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.message-assistant { min-width: 0; color: var(--ui-text-highlighted); scroll-margin-top: 24px; }
+.composer-dock { flex-shrink: 0; width: 100%; max-width: 800px; margin: 0 auto; padding: 12px 28px 14px; background: var(--ui-bg); }
+.chat-composer { border: 1px solid var(--ui-border); border-radius: 20px; padding: 10px 12px; box-shadow: 0 2px 8px rgb(0 0 0 / 3%); }
+.thinking-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: breathe 1.5s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: .3; } }
+@media (max-width: 640px) {
+  .conversation-content { padding: 20px 18px 32px; }
+  .composer-dock { padding: 10px 16px 12px; }
+  .conversation-messages { gap: 26px; }
+  .user-text { max-width: 92%; }
+}
+@media (prefers-reduced-motion: reduce) { .thinking-dot { animation: none; } }
+</style>

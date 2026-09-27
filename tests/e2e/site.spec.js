@@ -175,3 +175,41 @@ test('Gemma failure preserves the prompt for retry and stop cancels generation',
   await expect(chat.getByRole('log').locator('article')).toHaveCount(2);
   release();
 });
+
+for (const width of [1440, 390]) {
+  test(`chat renders readable Markdown with a docked composer at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route('**/api/pig-king/chat/session', route => route.fulfill({ json: { user: { login: 'demo' }, loginEnabled: true, model: 'gemma-4-12b' } }));
+    const answer = [
+      '## Vue 3 的几种常见选择',
+      '可以先区分 **应用框架** 和构建工具，再根据项目需求选择。',
+      '- **Nuxt**：需要服务端渲染和文件路由时使用。\n- **Vite**：适合自己组合 Vue Router 和状态管理。',
+      '### 一个简单的例子',
+      '```javascript\nimport { ref } from "vue";\nconst message = ref("Hello Vue");\nconst longLine = "' + 'code'.repeat(45) + '";\n```',
+      '| 需求 | 选择 |\n| --- | --- |\n| 完整应用 | Nuxt |\n| 轻量页面 | Vite |',
+      ...Array.from({ length: 12 }, (_, i) => `### 建议 ${i + 1}\n\n从一个小页面开始，验证路由、数据加载和部署流程。确认这些基础能力之后，再按实际需求扩展。`),
+      '<img src=x onerror="alert(1)">',
+      '[unsafe](javascript:alert(1))',
+      '![remote](https://example.com/tracker.png)',
+      '[Vue documentation](https://vuejs.org/)',
+    ].join('\n\n');
+    await page.route('**/api/pig-king/chat', route => route.fulfill({ json: { message: answer, truncated: false } }));
+    await page.goto('/ai-agent');
+    const chat = page.frameLocator('iframe');
+    await chat.getByRole('textbox').fill('Vue 3 有哪些框架？');
+    await chat.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(chat.getByRole('heading', { name: 'Vue 3 的几种常见选择' })).toBeVisible();
+    const reply = chat.getByRole('article', { name: 'Gemma', exact: true });
+    await expect(reply.locator('strong').first()).toHaveText('应用框架');
+    await expect(reply.locator('pre code')).toContainText('import { ref }');
+    await expect(reply.locator('table')).toHaveCount(1);
+    await expect(reply.locator('img, script, a[href^="javascript:"]')).toHaveCount(0);
+    await expect(reply.getByRole('link', { name: 'Vue documentation' })).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(await reply.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+    const layout = await chat.locator('form').evaluate(el => ({ bottom: el.getBoundingClientRect().bottom, top: el.getBoundingClientRect().top, height: window.innerHeight, overflow: document.body.scrollWidth > window.innerWidth }));
+    expect(layout.bottom).toBeLessThanOrEqual(layout.height);
+    expect(layout.top).toBeGreaterThan(0);
+    expect(layout.overflow).toBe(false);
+    await page.screenshot({ path: testInfo.outputPath(`chat-${width}.png`) });
+  });
+}
