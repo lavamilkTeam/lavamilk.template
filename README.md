@@ -125,7 +125,7 @@ cd pocketbase && unzip -o /tmp/pb.zip && chmod +x pocketbase
 
 ## URL 路由与质量检查（2026-09-27）
 
-页面已支持 `/features`、`/docs`、`/pig-king` 等独立 URL、直接访问、刷新及浏览器前进/后退。生产 Nginx 必须合并 `ops/nginx/lavamilk-spa.conf`，具体见 [部署文档](docs/deployment-lavamilk.md#2026-09-27-url-路由发布要求仓库配置尚未部署)。本地 Vite 开发/预览自动提供 history fallback。
+页面已支持 `/features`、`/docs`、`/pig-king` 等独立 URL、直接访问、刷新及浏览器前进/后退。生产 Nginx 必须合并 `ops/nginx/lavamilk-spa.conf`，具体见 [部署文档](docs/deployment-lavamilk.md#2026-09-27-url-路由发布要求)。本地 Vite 开发/预览自动提供 history fallback。
 
 使用 Node 22.16+，运行 `npm ci`、`npm ci --prefix server`、`npm ci --prefix apps/ai-agent`、`npx playwright install chromium`，然后执行 `npm run check:all`。完整流程包含 lint、前端/CMS 类型检查、模块边界、单元测试、构建、真实 MySQL 集成和浏览器交互测试；本地集成测试需要 Docker，CI 自动提供测试数据库。详细范围见 [架构与检查](docs/architecture.md)。
 

@@ -86,7 +86,7 @@
 
 扩容及缓存限制后的真实验收：`iwakurarin` 从 2024-11-06 扫至 2026-09-24，读取 35/35 条提交、48/48 个 PR、0 个 Issues。AI 完成 83/83 条、失败批次 0、正文截断 0；生成带原始来源链接的中英毒舌报告，Safari 展示与 MySQL 保存均已确认。过程验证了模型重载后的任务续跑，没有重读已完成批次。
 
-## 2026-09-27 URL 路由发布要求（仓库配置，尚未部署）
+## 2026-09-27 URL 路由发布要求
 
 前端现在使用 HTML5 history 路由：`/features`、`/docs`、`/pig-king`、`/about` 等页面有独立地址。旧 `/#pig-king` 和带 `pig_auth` 的旧 OAuth 链接会替换为 `/pig-king`，保留查询参数；新后端 OAuth 登录回跳直接使用 `/pig-king`。GitHub OAuth App 的回调 URL `/api/pig-king/auth/callback` 不变。隐藏的 pricing/changelog 仍不显示导航入口。
 
@@ -95,3 +95,18 @@
 验收：直接访问和刷新 `/docs`、`/pig-king` 正常；页面切换改变地址；浏览器前后退正常；旧登录链接可用；`/assets/missing.js` 返回 404；`/api/pig-king/health` 仍返回 JSON。未知页面由前端显示 404 UI（SPA 文档的 HTTP 状态为 200）。
 
 参考：[Vue Router history 部署说明](https://router.vuejs.org/guide/essentials/history-mode.html)。
+
+
+## 2026-09-27 路由与可靠性修复上线
+
+已发布提交 `bbed0d71d9799ac4a9f9fa899c5ebcf68b1cc18f`。本次按该提交隔离构建，不包含后续 `3af1b25` 的 AI Agent 预览。宝塔登录和配置显示核对使用 Computer Use；随后按用户要求改用本机 SSH/SCP 完成上传、配置原子替换、服务重启和验证。
+
+备份及发布目录：`/www/backups/lavamilk/routes-20260927-bbed0d7/`（权限 700）。其中 `frontend-before.tar.gz`、`backend-before.tar.gz`、`source-before.tar.gz`、`nginx-before.conf` 分别保存原前端、相关后端/钩子/脚本、原项目源码和站点配置；`leaderboard-before.json` 与 `leaderboard-after.json` 验证排名一致。发布包 `lavamilk-routes-20260927-bbed0d7.tar.gz` 的 SHA-256 为 `93626fe3643386176bd9bff5883561b26a15b11dddf5499922d4dd73de63db80`，内部 `SHA256SUMS` 全部通过。`deployed.json` 记录发布提交。
+
+更新了前端、`community/server`、共享评分入口、保留的 PocketBase 钩子及 `app` 源码；只重启 `lavamilk-community-api` 和 `lavamilk-pb`。线上服务依赖锁与发布版本一致，没有重新安装运行依赖。没有运行 CMS 初始化、同步或新增迁移，没有替换数据库目录、环境凭据、模型服务或其他站点。静态资源先复制、入口最后原子切换，原哈希资源及证书验证目录保留。
+
+现网已有 history fallback。本次补充 `/assets/`、`/images/`、`/emoji/` 缺失文件返回 404 的规则，保留原 API 代理、OAuth 日志关闭设置、HTTPS 和证书；Nginx 语法检查后 reload。宝塔 HTML 项目配置页已核对，能直接显示这些文件变更。
+
+验证：隔离构建通过 lint、类型、边界、23 项单元测试和 5 项浏览器测试；同一代码提交此前已通过 3 项真实 MySQL 集成测试。公网 `/`、`/features`、`/docs`、`/pig-king`、`/about` 返回本次入口，所有 JS/CSS SHA-256 与构建一致；三类静态资源缺失均返回 404。Computer Use 验证文档直达及刷新、页面导航、浏览器前后退、猪猪榜及原有完整报告。社区 API、CMS 健康；登录入口重定向到 GitHub 并使用原回调地址，无效回调安全返回 `/pig-king`，匿名扫描返回 401。没有触发真实账户重新扫描或重新授权。
+
+回滚时使用上述目录中的前端、后端和配置备份，仅恢复本次涉及的文件，检查 Nginx 后重载并重启相关服务；原依赖和数据目录无需恢复。源码备份用于还原 `app`。不要恢复或覆盖数据库，也不要删除上线后产生的新数据。
