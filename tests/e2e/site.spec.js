@@ -208,14 +208,9 @@ for (const width of [1440, 390]) {
   });
 }
 
-test('saved conversations can be renamed, archived, restored and deleted; profile edits remain separate', async ({page})=>{
+test('saved conversations can be renamed, archived, restored and deleted without a profile entry', async ({page})=>{
   await page.route('**/api/pig-king/chat/session',route=>route.fulfill({json:{user:{id:'1',login:'demo'},loginEnabled:true,model:'gemma'}}));
   await mockChat(page);
-  const profile={name:'GitHub Name',bio:'Hardware community',displayName:'',locale:'en'};
-  await page.route('**/api/pig-king/me/profile',route=>{
-    if(route.request().method()==='PATCH')Object.assign(profile,route.request().postDataJSON());
-    return route.fulfill({json:{profile}});
-  });
   await page.goto('/ai-agent');
   const chat=page.frameLocator('iframe');
   await chat.getByRole('textbox').fill('Persistent question');
@@ -230,11 +225,7 @@ test('saved conversations can be renamed, archived, restored and deleted; profil
   await chat.getByRole('button',{name:'Show archived',exact:true}).click();
   await expect(chat.getByRole('button',{name:'My saved conversation',exact:true})).toBeVisible();
   await chat.getByRole('button',{name:'Restore conversation',exact:true}).click();
-  await chat.getByRole('button',{name:'Account profile',exact:true}).click();
-  await expect(chat.getByText('GitHub Name', {exact:true})).toBeVisible();
-  await chat.getByRole('textbox',{name:'Display name',exact:true}).fill('Maker');
-  await chat.getByRole('button',{name:'Save profile',exact:true}).click();
-  expect(profile.displayName).toBe('Maker');expect(profile.name).toBe('GitHub Name');
+  await expect(chat.getByRole('button',{name:'Account profile',exact:true})).toHaveCount(0);
   await chat.getByRole('button',{name:'Delete conversation',exact:true}).click();
   await chat.getByRole('button',{name:'Confirm delete',exact:true}).click();
   await expect(chat.getByRole('log')).toHaveCount(0);

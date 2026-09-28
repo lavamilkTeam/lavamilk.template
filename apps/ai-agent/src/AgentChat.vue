@@ -50,10 +50,6 @@ const archived = ref(false);
 const titleDraft = ref('');
 const editingTitle = ref(false);
 const deleting = ref(false);
-const profileOpen = ref(false);
-const displayName = ref('');
-const githubName = ref('');
-const bio = ref('');
 const activeTurn = computed(() => turns.value.find(turn => ['pending','running'].includes(turn.status)));
 const failedTurn = computed(() => ['failed','cancelled'].includes(turns.value.at(-1)?.status || '') ? turns.value.at(-1) : null);
 const pending = computed(() => submitting.value || !!activeTurn.value);
@@ -85,7 +81,6 @@ function reset() {
   generation++; if (poll) clearTimeout(poll); poll=null;
   selected.value=null; turns.value=[]; before.value=null; submitting.value=false;
   input.value=''; error.value=''; draftRequest=null; editingTitle.value=false; deleting.value=false; sidebarOpen.value=false;
-  profileOpen.value=false; displayName.value=''; githubName.value=''; bio.value='';
 }
 function newChat() {
   if (user.value) localStorage.removeItem('lavamilk-chat-selected:'+user.value.id);
@@ -209,17 +204,6 @@ async function switchList() {
   archived.value=!archived.value;
   try {await refreshList();}catch(cause){showError(cause);}
 }
-async function openProfile() {
-  const version=generation;
-  try {const {profile}=await api.profile();if(version!==generation)return;
-    displayName.value=profile.displayName || '';githubName.value=profile.name || '';bio.value=profile.bio || '';profileOpen.value=true;
-  }catch(cause){if(version===generation)showError(cause);}
-}
-async function saveProfile() {
-  const version=generation;
-  try {await api.saveProfile({displayName:displayName.value,locale:english?'en':'zh-CN'});if(version===generation)profileOpen.value=false;}
-  catch(cause){if(version===generation)showError(cause);}
-}
 onMounted(() => {
   loadSession(); window.addEventListener('focus',loadSession);
   if(typeof BroadcastChannel!=='undefined'){authChannel=new BroadcastChannel('lavamilk-session');authChannel.onmessage=loadSession;}
@@ -249,12 +233,6 @@ onUnmounted(()=>{sessionGeneration++;reset();window.removeEventListener('focus',
             <UButton v-if="listCursor" color="neutral" variant="ghost" size="xs" :label="label('更多对话','More conversations')" @click="refreshList(true).catch(showError)" />
           </div>
         </template>
-        <template #footer="{ collapsed }">
-          <div class="flex items-center gap-2 rounded-lg px-2 py-3 text-sm text-muted">
-            <UIcon name="i-lucide-user-round" class="size-5 shrink-0" />
-            <button v-if="!collapsed" type="button" :disabled="!user" :aria-label="label('账户资料','Account profile')" @click="openProfile">{{ user?.login || label('未登录', 'Not signed in') }}</button>
-          </div>
-        </template>
       </UDashboardSidebar>
       <div class="flex min-w-0 flex-1 overflow-hidden bg-default">
         <UDashboardPanel id="agent-chat" class="min-h-0" :ui="{ body: 'min-h-0 flex-1 overflow-hidden p-0 sm:p-0' }">
@@ -273,16 +251,11 @@ onUnmounted(()=>{sessionGeneration++;reset();window.removeEventListener('focus',
           </template>
           <template #body>
             <div ref="transcript" class="conversation-scroll" @scroll.passive="trackScroll">
-              <div class="conversation-content" :class="{ 'conversation-empty': !messages.length && !profileOpen && !editingTitle && !deleting }">
-                <div v-if="profileOpen" class="mb-5 space-y-3">
-                  <h2>{{ label('账户资料','Account profile') }}</h2><p>{{ githubName || user?.login }}</p><p class="text-sm text-muted">{{ bio }}</p>
-                  <label class="block">{{ label('站内昵称','Display name') }}<input v-model="displayName" maxlength="80" class="mt-2 block w-full rounded border border-default px-3 py-2" /></label>
-                  <UButton :label="label('保存资料','Save profile')" @click="saveProfile" /><UButton color="neutral" variant="ghost" :label="label('关闭','Close')" @click="profileOpen=false" />
-                </div>
+              <div class="conversation-content" :class="{ 'conversation-empty': !messages.length && !editingTitle && !deleting }">
                 <div v-if="editingTitle" class="mb-4 flex gap-2"><input v-model="titleDraft" maxlength="160" :aria-label="label('对话标题','Conversation title')" class="min-w-0 flex-1 rounded border border-default px-2" /><UButton :label="label('保存标题','Save title')" @click="updateConversation()" /></div>
                 <div v-if="deleting" class="mb-4 flex flex-wrap items-center gap-2"><span>{{ label('删除后将从列表隐藏。','This conversation will be removed from your list.') }}</span><UButton color="error" :label="label('确认删除','Confirm delete')" @click="deleteConversation" /><UButton color="neutral" :label="label('取消','Cancel')" @click="deleting=false" /></div>
                 <UButton v-if="before" color="neutral" variant="ghost" :label="label('加载更早消息','Load earlier messages')" @click="olderMessages" />
-                <div v-if="!messages.length && !profileOpen" class="space-y-7">
+                <div v-if="!messages.length" class="space-y-7">
                   <h1 class="text-2xl font-semibold tracking-tight text-highlighted sm:text-3xl">{{ label('今天，想一起做点什么？', 'What shall we work on today?') }}</h1>
                   <div class="flex flex-wrap gap-2">
                     <UButton v-for="prompt in prompts" :key="prompt.text" :label="prompt.text" :icon="prompt.icon" color="neutral" variant="outline" size="sm" class="rounded-full" @click="input = prompt.text" />
