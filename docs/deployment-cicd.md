@@ -40,4 +40,6 @@ GitHub 部署环境、并发与 Secrets 的行为参考 [官方部署文档](htt
 
 服务器接收脚本、专用 forced-command 公钥和 `/ai-chat/` Nginx 规则已安装；日常 root 登录方式未改动。尝试用专用密钥运行普通 shell 命令被接收端拒绝。Nginx 语法检查和线上页面/资源/API 验证通过。安装前备份位于 `/www/backups/lavamilk/cicd-setup-20260927-155726/`。
 
-GitHub 内置浏览器尚未登录，两个 Actions Secrets 仍待保存，尚未完成 GitHub 自动发布实跑。接收端已准备好，但当前不能将该状态称为“自动上线已启用”。
+2026-09-29 已通过 Safari 配置两个 Actions Secrets，专用部署密钥的保存已获用户确认。自动发布已启用：重跑 [工作流 #9](https://github.com/lavamilkTeam/lavamilk.template/actions/runs/36353604028) 的失败部署任务后，检查及发布均成功，部署版本为 `d9d8642c6ca2a692334ec7603e2b789f4c5aab9f`。服务器成功记录与该 commit 一致；社区/CMS 健康检查及 Safari 刷新首页验证通过，首页使用原来的 SMT 设备标语。
+
+该次发布的回滚备份：`/www/backups/lavamilk/cicd/9-d9d8642c6ca2-1790621729344375435/`。后续 main 推送通过全部检查后自动发布，具体当前版本和回滚目录以服务器 `current.json` 为准。
