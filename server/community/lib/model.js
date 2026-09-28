@@ -44,7 +44,10 @@ export function createChat(model, now) {
       if (response.statusCode === 503 || response.statusCode === 429) throw new Error('modelBusy');
       const choice = response.json?.choices?.[0];
       if (response.statusCode !== 200 || typeof choice?.message?.content !== 'string' || !choice.message.content.trim()) throw new Error('modelUnavailable');
-      return { message: choice.message.content, truncated: choice.finish_reason === 'length', model: model.model };
+      if (Buffer.byteLength(choice.message.content)>65536) throw new Error('modelUnavailable');
+      const tokens = value => Number.isSafeInteger(value) && value>=0 && value<=4294967295 ? value : null;
+      return { message: choice.message.content, truncated: choice.finish_reason === 'length', model: model.model,
+        inputTokens:tokens(response.json.usage?.prompt_tokens),outputTokens:tokens(response.json.usage?.completion_tokens) };
     } catch (error) {
       if (['modelBusy', 'modelUnavailable'].includes(error.message)) throw error;
       throw new Error('modelUnavailable', { cause: error });

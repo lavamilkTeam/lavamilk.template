@@ -18,6 +18,7 @@ import urllib.request
 ROOT = Path('/www/wwwroot/lavamilk.club')
 STATE = Path('/www/backups/lavamilk/cicd')
 MAX_BYTES = 150 * 1024 * 1024
+SCHEMA_APPROVAL = Path('/opt/lavamilk-deploy/approved-schema.json')
 
 
 def command(*args):
@@ -113,9 +114,16 @@ def wait_api():
 
 def publish(stage, backup, root=ROOT):
     """Deploy runtime files and assets, restoring files/services on verification failure."""
-    # Schema changes require a separately reviewed migration with a data backup.
-    if (stage / 'server/community/lib/mysql.js').read_bytes() != (root / 'community/server/community/lib/mysql.js').read_bytes():
-        raise ValueError('MySQL schema adapter changed; deploy its migration manually first')
+    # Only an administrator can approve hashes after a backup and explicit migration.
+    adapter = 'server/community/lib/mysql.js'
+    migration_files = tree_hash(stage / 'server/migrations')
+    changed = (stage / adapter).read_bytes() != (root / 'community' / adapter).read_bytes()
+    if migration_files or changed:
+        approved = json.loads(SCHEMA_APPROVAL.read_text()) if SCHEMA_APPROVAL.exists() else {}
+        candidate = {'adapter': hashlib.sha256((stage / adapter).read_bytes()).hexdigest(),
+                     'migrations': migration_files}
+        if candidate != approved:
+            raise ValueError('Unapproved MySQL migration or adapter; back up and migrate manually first')
     if tree_hash(stage / 'pocketbase/pb_migrations') != tree_hash(root / 'app/pocketbase/pb_migrations'):
         raise ValueError('PocketBase migrations changed; deploy manually first')
     backend = tree_hash(stage / 'server') != tree_hash(root / 'community/server')

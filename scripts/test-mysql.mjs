@@ -31,6 +31,8 @@ try {
   }
   // An explicitly supplied database must also be a dedicated test database.
   if (!/test/i.test(new URL(databaseUrl).pathname)) throw new Error('TEST_DATABASE_URL must name a dedicated test database');
+  const migration = spawnSync(process.execPath, ['server/migrate.js'], { stdio: 'inherit', env: { ...process.env, MIGRATION_DATABASE_URL: databaseUrl } });
+  if (migration.status !== 0) throw new Error('Test database migration failed');
   const child = spawn('npm', ['test', '--prefix', 'server'], {
     stdio: 'inherit', env: { ...process.env, TEST_DATABASE_URL: databaseUrl },
   });

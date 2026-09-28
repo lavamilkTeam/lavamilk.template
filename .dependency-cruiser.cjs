@@ -1,5 +1,5 @@
 // Root files are public entry points; nested implementation and tests are private.
-const modules = ['server/community', 'scripts/cms-sync', 'src/features/pig-king', 'src/features/ai-agent',
+const modules = ['server/community', 'server/migrations', 'scripts/cms-sync', 'src/features/pig-king', 'src/features/ai-agent',
   'pocketbase/pb_hooks/pig-account', 'pocketbase/pb_hooks/pig-king'];
 module.exports = {
   forbidden: [

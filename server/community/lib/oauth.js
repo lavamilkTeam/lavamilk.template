@@ -40,8 +40,8 @@ export function createOAuth({ store, fetch, origin, clientId, clientSecret, now 
       const p = await profileResponse.json();
       if (p.type !== 'User' || !Number.isSafeInteger(p.id) || !/^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?$/i.test(p.login)) throw new Error('unsupportedAccount');
       const token = random();
-      // Neither GitHub access tokens nor private profile fields are retained.
-      await store.signIn({ id:String(p.id), login:p.login.toLowerCase(), avatar:`https://avatars.githubusercontent.com/u/${p.id}` },hash(token),now()+7*86400000);
+      // Keep only the approved profile fields; never retain access tokens or private emails.
+      await store.signIn({ id:String(p.id), login:p.login.toLowerCase(), avatar:`https://avatars.githubusercontent.com/u/${p.id}`, profile: {name:p.name,bio:p.bio,company:p.company,location:p.location,blog:p.blog,created_at:p.created_at} },hash(token),now()+7*86400000);
       return [setCookie('pig_session',token,7*86400,secure),setCookie('pig_oauth','',0,secure)];
     },
   };

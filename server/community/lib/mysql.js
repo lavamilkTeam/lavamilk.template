@@ -1,29 +1,12 @@
 import mysql from 'mysql2/promise';
 import { randomUUID } from 'node:crypto';
+import { verifySchema } from '../../migrations/index.js';
+import { createChatStore, saveProfile } from './chat-store.js';
 
 export async function openStore(url) {
   const pool = mysql.createPool({ uri: url, connectionLimit: 5, timezone: 'Z', supportBigNumbers: true, bigNumberStrings: true });
-  await pool.query(`CREATE TABLE IF NOT EXISTS community_users (
-    github_id VARCHAR(24) PRIMARY KEY, login VARCHAR(39) NOT NULL UNIQUE,
-    avatar_url VARCHAR(255) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS community_sessions (
-    token_hash CHAR(64) PRIMARY KEY, github_id VARCHAR(24) NOT NULL, expires_at BIGINT NOT NULL,
-    INDEX (expires_at), FOREIGN KEY (github_id) REFERENCES community_users(github_id))`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS community_oauth (
-    state_hash CHAR(64) PRIMARY KEY, verifier VARCHAR(128) NOT NULL, expires_at BIGINT NOT NULL)`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS community_reports (
-    github_id VARCHAR(24) PRIMARY KEY, account VARCHAR(39) NOT NULL, score INT NOT NULL,
-    eligible INT NOT NULL, completed_at BIGINT NOT NULL, report JSON NOT NULL,
-    INDEX ranking (score DESC, account), FOREIGN KEY (github_id) REFERENCES community_users(github_id))`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS community_report_history (
-    id CHAR(36) PRIMARY KEY, github_id VARCHAR(24) NOT NULL, completed_at BIGINT NOT NULL,
-    report JSON NOT NULL, INDEX (github_id, completed_at))`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS community_jobs (
-    github_id VARCHAR(24) PRIMARY KEY, state JSON, lease CHAR(36), locked_until BIGINT NOT NULL DEFAULT 0,
-    last_request BIGINT NOT NULL DEFAULT 0, failure VARCHAR(40) NOT NULL DEFAULT '')`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS community_legacy_reports (
-    account VARCHAR(39) PRIMARY KEY, imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, report JSON NOT NULL)`);
+  pool.on('connection', connection => connection.query("SET time_zone='+00:00'"));
+  try { await verifySchema(pool); } catch (error) { await pool.end(); throw error; }
   const decode = x => typeof x === 'string' ? JSON.parse(x) : x;
   async function transaction(fn) {
     const conn = await pool.getConnection();
@@ -33,6 +16,7 @@ export async function openStore(url) {
   function progress(state) { return {status:'pending',phase:state?.review?.waitUntil>Date.now()?'modelWaiting':state?.phase || 'profile',repositories:state?.repositories?.length || state?.report?.repositories?.length || 0,
     retryAfter:state?.review?.waitUntil ? Math.max(0,Math.ceil((state.review.waitUntil-Date.now())/1000)):0,processed:state?.review?.reviewed || state?.[state?.phase]?.sampled || 0}; }
   return {
+    ...createChatStore(pool, transaction),
     async health() { await pool.query('SELECT 1'); },
     close: () => pool.end(),
     async saveOAuth(hash, verifier, expires) {
@@ -51,6 +35,7 @@ export async function openStore(url) {
         await conn.execute('UPDATE community_users SET login=CONCAT("~retired-",github_id) WHERE login=? AND github_id<>?', [user.login, user.id]);
         await conn.execute(`INSERT INTO community_users (github_id,login,avatar_url) VALUES (?,?,?)
           ON DUPLICATE KEY UPDATE login=VALUES(login),avatar_url=VALUES(avatar_url)`, [user.id, user.login, user.avatar]);
+        await saveProfile(conn, user);
         await conn.execute('INSERT INTO community_sessions VALUES (?,?,?)', [tokenHash, user.id, expires]);
       });
     },

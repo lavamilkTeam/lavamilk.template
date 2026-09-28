@@ -3,13 +3,14 @@ import { openStore } from './lib/mysql.js';
 import { createOAuth, cookie, hash, setCookie } from './lib/oauth.js';
 import { begin, next, normalizeAccount } from './lib/scanner.js';
 import { createModel, createChat } from './lib/model.js';
+import { createChatRoutes, createChatWorker } from './lib/chat.js';
 
 export async function createApplication(config, { fetch: transport = globalThis.fetch, now = Date.now } = {}) {
   const origin = new URL(config.origin).origin;
   const store = await openStore(config.databaseUrl);
   const oauth = createOAuth({ store, fetch:transport, origin, clientId:config.clientId, clientSecret:config.clientSecret, now });
   const codes = { authRequired:401, forbidden:403, accountNotAllowed:400, oauthFailed:400, authUnavailable:503,
-    invalidMessage:400, modelBusy:503, modelUnavailable:503, invalidAccount:400, unsupportedAccount:422, identityChanged:409, notFound:404, tooLarge:422, rateLimit:429, github:502, offline:503 };
+    conflict:409, conversationBusy:409, invalidMessage:400, modelBusy:503, modelUnavailable:503, invalidAccount:400, unsupportedAccount:422, identityChanged:409, notFound:404, tooLarge:422, rateLimit:429, github:502, offline:503 };
   async function github(path) {
     let r;
     try { r = await transport('https://api.github.com'+path, { signal:AbortSignal.timeout(12000), headers:{
@@ -27,6 +28,8 @@ export async function createApplication(config, { fetch: transport = globalThis.
   }
   const ai = createModel(config.ai, transport);
   const chat = createChat(ai, now);
+  const worker = config.startChatWorker === false ? {kick(){},async close(){}} : createChatWorker(store,ai,now);
+  const chatRoutes = createChatRoutes(store,ai,worker.kick);
   async function body(req, limit=512, code='accountNotAllowed') {
     let size=0; const chunks=[];
     for await (const chunk of req) { size+=chunk.length; if (size>limit) throw new Error(code); chunks.push(chunk); }
@@ -71,6 +74,12 @@ export async function createApplication(config, { fetch: transport = globalThis.
       const user=token ? await store.session(hash(token),now()) : null;
       if (method==='GET' && path==='/api/pig-king/auth/session') return json(res,200,{user,loginEnabled:oauth.enabled});
       if (method==='GET' && path==='/api/pig-king/chat/session') return json(res,200,{user,loginEnabled:oauth.enabled,model:ai.enabled ? ai.model : null});
+      if (path==='/api/pig-king/me/profile' || path==='/api/pig-king/chat/conversations' || path.startsWith('/api/pig-king/chat/conversations/')) {
+        if (!user) throw new Error('authRequired');
+        if (method!=='GET' && req.headers.origin!==origin) throw new Error('forbidden');
+        const result=await chatRoutes(path.slice('/api/pig-king'.length),method,url,user,()=>body(req,32000,'invalidMessage'));
+        return json(res,result.turn ? 202 : 200,result);
+      }
       if (method==='POST' && path==='/api/pig-king/chat') {
         if (!user) throw new Error('authRequired');
         if (req.headers.origin !== origin) throw new Error('forbidden');
@@ -104,5 +113,5 @@ export async function createApplication(config, { fetch: transport = globalThis.
       return json(res,404,{code:'notFound'});
     } catch(e) { if (res.destroyed) return; return json(res,codes[e.message] || 503,{code:codes[e.message] ? e.message : 'offline',...(e.message==='rateLimit'?{retryAfter:e.retryAfter || 5}:{})}); }
   }
-  return { handler, close:()=>store.close(), importLegacy:reports=>store.importLegacy(reports) };
+  return { handler, close:async()=>{await worker.close();await store.close();}, importLegacy:reports=>store.importLegacy(reports) };
 }

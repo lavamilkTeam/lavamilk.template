@@ -1,1 +1,12 @@
-{"name":"lavamilk-community-api","private":true,"type":"module","scripts":{"start":"node start.js","test":"node --test community/tests/*.test.js"},"dependencies":{"mysql2":"^3.15.0"}}
+{
+  "name": "lavamilk-community-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node start.js",
+    "test": "node --test --test-concurrency=1 community/tests/*.test.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.15.0"
+  }
+}

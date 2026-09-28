@@ -112,6 +112,24 @@ class DeploymentTests(unittest.TestCase):
         self.assertFalse(backup.exists())
         self.assertEqual((root / 'dist/index.html').read_text(), 'old')
 
+    def test_approved_migration_deploys_but_changed_sql_is_rejected(self):
+        root, stage, backup = self.setup_release()
+        migrations = stage / 'server/migrations'
+        migrations.mkdir()
+        (migrations / '001.sql').write_text('CREATE TABLE example(id INT)')
+        (stage / 'server/community/lib/mysql.js').write_text('verified adapter')
+        approval = self.base / 'approved.json'
+        approval.write_text(json.dumps({
+            'adapter': hashlib.sha256((stage / 'server/community/lib/mysql.js').read_bytes()).hexdigest(),
+            'migrations': deploy.tree_hash(migrations)}))
+        with patch.object(deploy, 'SCHEMA_APPROVAL', approval), patch.object(deploy, 'command', return_value='node:22'), \
+                patch.object(deploy, 'wait_api'), patch.object(deploy, 'verify'):
+            deploy.publish(stage, backup, root)
+            (migrations / '001.sql').write_text('DROP TABLE example')
+            with self.assertRaisesRegex(ValueError, 'Unapproved'):
+                deploy.publish(stage, self.base / 'second-backup', root)
+            self.assertFalse((self.base / 'second-backup').exists())
+
 
 if __name__ == '__main__':
     unittest.main()

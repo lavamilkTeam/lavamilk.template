@@ -1,6 +1,6 @@
 # GitHub 账户与 AI 对话存储设计
 
-状态：设计方案和可执行 DDL，尚未接入运行时或迁移生产数据库。以 2026-09-29 的现有代码为基线。
+状态：2026-09-29 已实现账户资料、持久化对话 HTTP/前端及显式版本化迁移。执行方式见 [接入与发布](account-chat-rollout.md)。
 
 ## 选型结论
 
@@ -19,7 +19,7 @@ MySQL 8.4 属于 LTS 系列，数据库升级应选兼容维护版本并验证�
 
 ## 现状与兼容策略
 
-`community_users` 已保存 `github_id`、唯一的 `login`、头像和时间；`community_sessions` 保存站内会话 token 的哈希；OAuth 临时状态、扫描任务、当前报告、历史报告也已经在 MySQL。AI 接口现在接收浏览器提交的完整消息数组，刷新后记录消失。
+`community_users` 已保存 `github_id`、唯一的 `login`、头像和时间；`community_sessions` 保存站内会话 token 的哈希；OAuth 临时状态、扫描任务、当前报告、历史报告也已经在 MySQL。旧 AI 接口接收完整消息数组，新界面改为提交当前输入并从 MySQL 恢复历史。
 
 保留 `community_users.github_id VARCHAR(24)` 作为首期账户主键。它对应 GitHub 数值 ID，以字符串传输，不用可变的用户名作为聊天归属依据。现有登录逻辑已处理 GitHub 用户名改名/复用。当前只有 GitHub 登录，无需立即再建一套本地账户 ID 和身份映射；将来真正接入其他登录提供商时再引入 `users` 和 `user_identities(provider, subject)`，通过映射迁移而不是按 email 自动合并账户。
 
@@ -76,7 +76,7 @@ erDiagram
     }
 ```
 
-完整字段、外键、检查约束及索引见 [account-chat.sql](account-chat.sql)。一轮 `turn` 包含一条用户消息和至多一条 AI 回复。生成失败时保留用户输入和错误状态，不能伪造空的成功回复。用户界面的“对话列表”是 conversations；“消息记录”是 messages；是否生成中、能否重试、用哪个模型则由 turns 管理。
+完整字段、外键、检查约束及索引以版本化 [001-account-chat.sql](../../server/migrations/001-account-chat.sql) 为准；[原设计 SQL](account-chat.sql) 留作设计快照。一轮 `turn` 包含一条用户消息和至多一条 AI 回复。生成失败时保留用户输入和错误状态，不能伪造空的成功回复。用户界面的“对话列表”是 conversations；“消息记录”是 messages；是否生成中、能否重试、用哪个模型则由 turns 管理。
 
 | 表 | 关键字段及用途 |
 | --- | --- |
@@ -105,9 +105,9 @@ FK/UNIQUE/CHECK 只能保证结构完整性，**不能代替用户鉴权、状�
 首期保持纯文本问答，完成后一次返回正文；历史存储与日后 SSE 流式输出可共用同一结构。
 
 1. 浏览器 POST 当前用户输入、conversation ID 和随机 `clientRequestId`；身份只取已验证会话。客户端不提交 github_id、历史 assistant 消息或模型 URL。
-2. 短事务锁定该用户的 conversation 行，检查未删除、未归档；先查幂等 key，再检查是否已有活动 turn。分配 `next_turn_no`，写入 pending turn 和 user message，更新会话计数/revision，提交。数据库写入失败时不调用模型。
+2. 短事务先锁定账户行，再锁定该用户的 conversation 行，检查未删除、未归档；先查幂等 key，再检查是否已有活动 turn。分配 `next_turn_no`，写入 pending turn 和 user message，更新会话计数/revision，提交。数据库写入失败时不调用模型。
 3. 接口返回 202 和 turn ID。应用内 worker 从 MySQL 领取 pending 项，通过条件更新改为 running，写随机 lease_token、120 秒租约及 started_at 后提交。上下文从数据库加载同一账户、同一会话中已完成的轮次，以及当前用户输入；仅裁剪送模型的上下文，不删历史。
-4. 在数据库事务外调用现有模型适配器，继续保持 90 秒上限。首期只运行一个模型 worker，扫描与聊天仍共享现有单并发模型门；模型忙可短期等待/重试，达到等待期限后标记 failed，不能无限占 pending 槽位。
+4. 在数据库事务外调用现有模型适配器，继续保持 90 秒上限。首期只运行一个模型 worker，扫描与聊天仍共享现有单并发模型门；模型忙标记 failed，用户稍后主动重试，不能无限占 pending 槽位。
 5. 成功后按“先 conversation、再 turn”的固定顺序锁行，校验账户、deleted_at、状态和 lease_token。一次事务写 assistant message、用量/耗时，标记 completed、清空租约，更新 conversation 的更新时间/revision。提交后客户端才收到成功；提交前服务崩溃不宣称已保存。
 6. 模型失败、取消或超时将 turn 标记 failed/cancelled、记录白名单 error_code、清空租约和写 finished_at；保留 user message。过期 running 租约由周期任务标记 failed(interrupted)，不自动反复重新计费。pending 等待上限初始设 120 秒，也须有回收任务。
 7. 用户主动重试通过 `expectedAttempt` 做 compare-and-set，只有指定的失败轮次仍是会话最后一轮、无其他活动轮次且 attempt_no 匹配才能增至下一次 pending；清空旧时序、错误与用量字段，保留原 user message。重复重试请求返回当前状态，避免同一轮被重跑两次。已有后续轮次时返回 409，用户可复制问题开启新一轮。
@@ -116,7 +116,7 @@ FK/UNIQUE/CHECK 只能保证结构完整性，**不能代替用户鉴权、状�
 
 数据库与外部模型无法组成同一事务：网络故障、租约过期后的人工重试仍可能导致模型被调用两次。这里保证消息不重复落库、结果不互相覆盖，不承诺外部调用 exactly-once。`ai_turns` 的用量字段保存最近一次尝试的可获知用量，NULL 表示模型未提供，不能当作 0；如果以后收费，另建不可变的 attempt/usage ledger，每次重试单独记账。
 
-与当前代码的行为变化：页面断线不会自动删除或取消已受理的持久任务；前端恢复后查询 turn 状态。“停止生成”需显式 cancel 接口并标记 cancelled。浏览器关闭不是取消指令。执行中租约按实际实现心跳续期，续期只允许匹配 token 的当前执行者。
+与当前代码的行为变化：页面断线不会自动删除或取消已受理的持久任务；前端恢复后查询 turn 状态。“停止生成”需显式 cancel 接口并标记 cancelled。浏览器关闭不是取消指令。首期使用固定 120 秒租约，覆盖 90 秒模型请求上限；每秒检查取消状态，完成事务再次检查租约未过期，不延长已失效租约。
 
 ## 接口与访问边界
 
@@ -152,7 +152,7 @@ ORDER BY t.turn_no, FIELD(m.role, 'user', 'assistant');
 
 ## 保留、备份和扩容
 
-初始建议：聊天默认一直保存到用户删除；删除即从所有用户接口隐藏，7 天后分批物理清除。备份中的副本随 30 天保留周期到期清理；这两项是待产品确认的策略，不是已上线的承诺。GitHub 新资料在成功登录时更新，首次为旧账户创建空资料行，下一次登录补齐。不要把未同步状态显示成“资料为空”。
+初始建议：聊天默认一直保存到用户删除；删除即从所有用户接口隐藏，7 天后分批物理清除。备份中的副本随 30 天保留周期到期清理；前者由本次实现；备份 30 天轮换、异机副本及恢复演练仍需单独配置，不能视为已经完成。GitHub 新资料在成功登录时更新，首次为旧账户创建空资料行，下一次登录补齐。不要把未同步状态显示成“资料为空”。
 
 注销账户需单独流程：撤销所有会话，停止生成，清理 profiles/conversations，再按业务保留政策处理既有 reports、report_history、jobs 和 legacy 数据。现有 history/jobs 没有账户外键，不能仅依赖级联删除；不在本次加表时顺手改动已有报告保留逻辑。
 
@@ -171,10 +171,8 @@ ORDER BY t.turn_no, FIELD(m.role, 'user', 'assistant');
 5. 验证 A/B 两账户隔离、GitHub 改名、刷新/重新登录、重试幂等、多标签竞争、模型中断、取消和删除后晚到回复。再逐步打开新界面。
 6. 应用回滚保留新表及数据，关闭新入口即可；不自动 DROP 数据。需要删除试验数据必须单独确认范围。
 
-当前 CI/CD 的部署包不包含 docs 下的 DDL，也不自动运行数据库迁移；`mysql.js` 改动还会被服务器 guard 拦截。真正接入时需要补充 schema version 的只读检查并按上述步骤迁移后更新基线，不能简单删除 guard 来让部署绿灯。
+CI/CD 包含版本化迁移文件，但不执行迁移。服务器只允许管理员在备份、迁移并检查成功后登记的 adapter/migration hashes；应用启动还校验真实数据库 ledger。后续 DDL 必须新增版本，不改已应用脚本。
 
-## 本次验证与后续验收
+## 验证
 
-`server/community/tests/account-chat-schema.test.js` 通过现有应用公开入口建立基线表，然后直接执行本设计 DDL，在临时 MySQL 8.4 上验证外键、Unicode、唯一约束、并发活动槽、租约条件更新、所有者过滤查询和级联删除。它验证的是数据库设计；尚未有新 HTTP 接口，因此不等于前后端持久化功能已完成。运行：`npm run test:integration`。
-
-实施阶段还需通过真实 HTTP + MySQL 验证不能跨账户读取/写入，并为刷新恢复、会话列表和失败重试补浏览器测试。当前已存在的界面、CMS 和猪猪榜测试继续保留。
+`npm run check:all` 运行静态检查、生产构建、部署回滚测试、真实 MySQL HTTP/约束测试和浏览器测试。数据库测试只使用独立测试库，不读取生产凭据；浏览器中的 GitHub 和模型响应使用 HTTP 契约模拟，后端集成测试验证真实落库及账户隔离。

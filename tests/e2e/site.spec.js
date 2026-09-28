@@ -1,3 +1,4 @@
+import { mockChat } from './chat-fixture.js';
 import { test, expect } from '@playwright/test';
 
 // Only external API responses are substituted; the production bundle and router run unchanged.
@@ -120,14 +121,10 @@ test('AI agent supports Chinese mobile navigation without horizontal overflow', 
 
 test('one GitHub session covers header, ranking and Gemma chat, including sign out', async ({ page }) => {
   let user = { id: '1', login: 'demo', avatar: 'https://avatars.githubusercontent.com/u/1' };
-  const payloads = [];
+  const {payloads} = await mockChat(page,{answer:'<script>literal text</script> Gemma reply'});
   await page.route('**/api/pig-king/auth/session', route => route.fulfill({ json: { user, loginEnabled: true } }));
   await page.route('**/api/pig-king/chat/session', route => route.fulfill({ json: { user, loginEnabled: true, model: 'gemma-4-12b' } }));
   await page.route('**/api/pig-king/auth/logout', route => { user = null; return route.fulfill({ json: { ok: true } }); });
-  await page.route('**/api/pig-king/chat', route => {
-    payloads.push(route.request().postDataJSON());
-    return route.fulfill({ json: { message: '<script>literal text</script> Gemma reply', model: 'gemma-4-12b', truncated: false } });
-  });
   await page.goto('/pig-king');
   await expect(page.locator('header summary')).toHaveText('demo');
   await expect(page.locator('.pig-identity strong')).toHaveText('demo');
@@ -140,46 +137,43 @@ test('one GitHub session covers header, ranking and Gemma chat, including sign o
   await chat.getByRole('textbox').fill('Follow up');
   await chat.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(chat.getByRole('log').locator('article')).toHaveCount(4);
-  expect(payloads[1].messages.map(m => m.role)).toEqual(['user', 'assistant', 'user']);
+  expect(payloads[1].content).toBe('Follow up');
+  expect(payloads[1].messages).toBeUndefined();
+  await page.reload();
+  await expect(chat.getByRole('log').locator('article')).toHaveCount(4);
   await page.locator('header summary').click();
   await page.locator('header').getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(chat.getByRole('link', { name: 'Sign in with GitHub', exact: true })).toBeVisible();
   await expect(chat.getByRole('button', { name: 'Send', exact: true })).toBeDisabled();
+  await expect(chat.getByRole('log')).toHaveCount(0);
   await expect(page.locator('header').getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
 });
 
 test('Gemma failure preserves the prompt for retry and stop cancels generation', async ({ page }) => {
-  await page.route('**/api/pig-king/chat/session', route => route.fulfill({ json: { user: { login: 'demo' }, loginEnabled: true, model: 'gemma-4-12b' } }));
-  let count = 0;
-  let release;
-  await page.route('**/api/pig-king/chat', async route => {
-    count++;
-    if (count === 1) return route.fulfill({ status: 503, json: { code: 'modelBusy' } });
-    if (count === 2) return route.fulfill({ json: { message: 'Recovered', truncated: false } });
-    await new Promise(resolve => { release = resolve; });
-    await route.abort().catch(() => {});
-  });
+  await page.route('**/api/pig-king/chat/session', route => route.fulfill({ json: { user: { id:'1', login: 'demo' }, loginEnabled: true, model: 'gemma-4-12b' } }));
+  await mockChat(page,{answer:'Recovered',failFirst:true,holdAfter:3});
   await page.goto('/ai-agent');
   const chat = page.frameLocator('iframe');
   await chat.getByRole('textbox').fill('Keep this question');
   await chat.getByRole('button', { name: 'Send', exact: true }).click();
-  await expect(chat.getByRole('alert')).toContainText('busy');
-  await expect(chat.getByRole('textbox')).toHaveValue('Keep this question');
+  await expect(chat.getByRole('alert')).toContainText('question is saved');
+  await expect(chat.getByRole('log')).toContainText('Keep this question');
   await chat.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(chat.getByRole('log')).toContainText('Recovered');
   await chat.getByRole('textbox').fill('Stop this question');
   await chat.getByRole('button', { name: 'Send', exact: true }).click();
-  await expect.poll(() => count).toBe(3);
+  await expect(chat.getByRole('button', { name: 'Stop generating', exact: true })).toBeVisible();
   await chat.getByRole('button', { name: 'Stop generating', exact: true }).click();
-  await expect(chat.getByRole('textbox')).toHaveValue('Stop this question');
-  await expect(chat.getByRole('log').locator('article')).toHaveCount(2);
-  release();
+  await expect(chat.getByRole('alert')).toContainText('Generation stopped');
+  await expect(chat.getByRole('log').locator('article')).toHaveCount(3);
+  await page.reload();
+  await expect(chat.getByRole('log')).toContainText('Stop this question');
 });
 
 for (const width of [1440, 390]) {
   test(`chat renders readable Markdown with a docked composer at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.route('**/api/pig-king/chat/session', route => route.fulfill({ json: { user: { login: 'demo' }, loginEnabled: true, model: 'gemma-4-12b' } }));
+    await page.route('**/api/pig-king/chat/session', route => route.fulfill({ json: { user: { id:'1', login: 'demo' }, loginEnabled: true, model: 'gemma-4-12b' } }));
     const answer = [
       '## Vue 3 的几种常见选择',
       '可以先区分 **应用框架** 和构建工具，再根据项目需求选择。',
@@ -193,7 +187,7 @@ for (const width of [1440, 390]) {
       '![remote](https://example.com/tracker.png)',
       '[Vue documentation](https://vuejs.org/)',
     ].join('\n\n');
-    await page.route('**/api/pig-king/chat', route => route.fulfill({ json: { message: answer, truncated: false } }));
+    await mockChat(page,{answer});
     await page.goto('/ai-agent');
     const chat = page.frameLocator('iframe');
     await chat.getByRole('textbox').fill('Vue 3 有哪些框架？');
@@ -213,3 +207,36 @@ for (const width of [1440, 390]) {
     await page.screenshot({ path: testInfo.outputPath(`chat-${width}.png`) });
   });
 }
+
+test('saved conversations can be renamed, archived, restored and deleted; profile edits remain separate', async ({page})=>{
+  await page.route('**/api/pig-king/chat/session',route=>route.fulfill({json:{user:{id:'1',login:'demo'},loginEnabled:true,model:'gemma'}}));
+  await mockChat(page);
+  const profile={name:'GitHub Name',bio:'Hardware community',displayName:'',locale:'en'};
+  await page.route('**/api/pig-king/me/profile',route=>{
+    if(route.request().method()==='PATCH')Object.assign(profile,route.request().postDataJSON());
+    return route.fulfill({json:{profile}});
+  });
+  await page.goto('/ai-agent');
+  const chat=page.frameLocator('iframe');
+  await chat.getByRole('textbox').fill('Persistent question');
+  await chat.getByRole('button',{name:'Send',exact:true}).click();
+  await expect(chat.getByRole('log')).toContainText('Saved reply');
+  await chat.getByRole('button',{name:'Rename conversation'}).click();
+  await chat.getByRole('textbox',{name:'Conversation title'}).fill('My saved conversation');
+  await chat.getByRole('button',{name:'Save title'}).click();
+  await expect(chat.getByRole('button',{name:'My saved conversation',exact:true})).toBeVisible();
+  await chat.getByRole('button',{name:'Archive conversation',exact:true}).click();
+  await expect(chat.getByRole('button',{name:'Restore conversation',exact:true})).toBeVisible();
+  await chat.getByRole('button',{name:'Show archived',exact:true}).click();
+  await expect(chat.getByRole('button',{name:'My saved conversation',exact:true})).toBeVisible();
+  await chat.getByRole('button',{name:'Restore conversation',exact:true}).click();
+  await chat.getByRole('button',{name:'Account profile',exact:true}).click();
+  await expect(chat.getByText('GitHub Name', {exact:true})).toBeVisible();
+  await chat.getByRole('textbox',{name:'Display name',exact:true}).fill('Maker');
+  await chat.getByRole('button',{name:'Save profile',exact:true}).click();
+  expect(profile.displayName).toBe('Maker');expect(profile.name).toBe('GitHub Name');
+  await chat.getByRole('button',{name:'Delete conversation',exact:true}).click();
+  await chat.getByRole('button',{name:'Confirm delete',exact:true}).click();
+  await expect(chat.getByRole('log')).toHaveCount(0);
+  await page.reload();await expect(chat.getByRole('log')).toHaveCount(0);
+});

@@ -1,29 +1,21 @@
 // The reviewed DDL is the public interface under test, not private store methods.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import mysql from 'mysql2/promise';
 import { createApplication } from '../index.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
-test('proposed account/chat schema preserves ownership, idempotency, ordering and deletion', { skip: !databaseUrl }, async t => {
+test('migrated account/chat schema preserves ownership, idempotency, ordering and deletion', { skip: !databaseUrl }, async t => {
   assert.match(new URL(databaseUrl).pathname, /test/i);
-  const app = await createApplication({ databaseUrl, origin: 'https://schema.test' });
+  const app = await createApplication({ databaseUrl, origin: 'https://schema.test', startChatWorker: false });
   const db = await mysql.createConnection({ uri: databaseUrl, timezone: 'Z' });
-  const created = [];
   t.after(async () => {
     try {
-      for (const name of created.reverse()) await db.query('DROP TABLE `' + name + '`');
+      await db.execute('DELETE FROM ai_conversations WHERE github_id IN (?,?)', ['991001', '991002']);
       await db.execute('DELETE FROM community_users WHERE github_id IN (?,?)', ['991001', '991002']);
     } finally { await db.end(); await app.close(); }
   });
-  const ddl = await readFile(new URL('../../../docs/database/account-chat.sql', import.meta.url), 'utf8');
-  for (const sql of ddl.replace(/^--.*$/gm, '').split(';').map(s => s.trim()).filter(Boolean)) {
-    await db.query(sql);
-    const table = sql.match(/^CREATE TABLE ([a-z_]+)/)?.[1];
-    if (table) created.push(table);
-  }
   await db.execute('INSERT INTO community_users (github_id,login,avatar_url) VALUES (?,?,?),(?,?,?)',
     ['991001', 'schema-owner', 'avatar', '991002', 'schema-other', 'avatar']);
   const conversation = randomUUID(), turn = randomUUID(), request = randomUUID();

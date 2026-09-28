@@ -2,7 +2,7 @@
 
 ## 模块
 
-- `src/features/ai-agent/AiAgent.vue` 是官网 `/ai-agent` 页面入口，通过同源 iframe 展示 `/ai-chat/`。`apps/ai-agent` 独立构建 Nuxt UI Chat 模板，不跨应用导入源码或服务端模块；复制构建结果由 `scripts/copy-ai-agent.mjs` 完成。通过同源 `/api/pig-king/chat` 调用 Gemma，复用 GitHub HttpOnly 会话；消息仅在页面内存保存。聊天应用通过自己的 `api.js` 访问 HTTP，不接触模型密钥。
+- `src/features/ai-agent/AiAgent.vue` 是官网 `/ai-agent` 页面入口，通过同源 iframe 展示 `/ai-chat/`。`apps/ai-agent` 独立构建 Nuxt UI Chat 模板，不跨应用导入源码或服务端模块；复制构建结果由 `scripts/copy-ai-agent.mjs` 完成。通过同源 `/api/pig-king/chat/conversations` 调用持久化聊天接口，复用 GitHub HttpOnly 会话；消息保存在 MySQL，浏览器只缓存所选会话 ID。聊天应用通过自己的 `api.js` 访问 HTTP，不接触模型密钥。
 
 - `src/composables/useGitHubSession.js` 为官网顶部和猪猪榜共享的 GitHub 会话入口；独立聊天应用通过同源 HTTP 和只通知状态变化的 BroadcastChannel 同步登录状态，不跨应用导入源码。
 - `server/community/lib/model.js` 是社区内部的统一模型适配器，猪猪榜和智能体共用单并发及 90 秒上限；聊天先验证登录、Origin、消息角色和长度，再调用配置中的固定模型地址。
@@ -35,6 +35,10 @@ PocketBase `.pb.js` 钩子中的动态 `require(__hooks + ...)` 是框架运行�
 
 `ops/deploy/package.py` 只打包前端构建结果和 Git 跟踪的后端运行文件；`ops/deploy/deploy.py` 是部署模块的公开入口，独立安装在服务器，不从发布包执行运维脚本。部署模块不被应用源码导入。Python 测试通过其公开入口覆盖坏包、路径穿越、迁移拦截和实际文件回滚；服务命令与 HTTP 检查在测试中替换。`npm run test:deploy` 已加入 `check:all`。部署不执行数据库迁移、CMS 同步或修改服务凭据，配置步骤见 [deployment-cicd.md](deployment-cicd.md)。
 
-## 账户与聊天持久化设计（待接入）
+## 账户与聊天持久化
 
-[数据库方案](database/account-chat.md) 与 [设计 DDL](database/account-chat.sql) 定义四张新增表及迁移、任务租约、幂等和账户隔离策略。它们不会被应用启动或生产发布自动执行。`server/community/tests/account-chat-schema.test.js` 直接测试这一公开 DDL 的数据库约束，并通过既有应用公开入口建立基线；不导入私有 store 实现。
+[数据库方案](database/account-chat.md) 与 [部署迁移说明](database/account-chat-rollout.md) 说明四张新增表、任务租约、幂等及账户隔离。`server/migrations/index.js` 是迁移模块公共入口，SQL 文件是版本化输入，CLI `server/migrate.js` 负责环境变量；应用启动只校验 ledger 和 checksum，不执行 DDL。迁移不能从 HTTP 触发。
+
+`server/community/lib/chat.js` 负责 HTTP 校验和单 worker，`chat-store.js` 负责参数化 SQL、所有者检查与短事务。模型调用在事务外，120 秒租约包含现有 90 秒请求上限，过期结果不能提交。浏览器轮询生成状态，卸载不取消任务；显式取消和软删除会阻止晚到回复。
+
+真实 MySQL 测试通过应用 HTTP 入口覆盖账户资料白名单、用户隔离、消息幂等、重启恢复、失败重试、取消/删除、过期租约和归档 revision；DDL 测试覆盖 FK/CHECK/UNIQUE。浏览器测试覆盖刷新恢复、登出清屏、失败重试、取消和移动端 Markdown。旧无持久化 POST `/chat` 暂留作已打开旧页面的兼容接口。
