@@ -28,3 +28,6 @@ apps/ai-agent/.nuxt/
 __pycache__/
 *.pyc
 /release.tar.gz
+
+# Reviewed schema design, not a database dump
+!docs/database/account-chat.sql

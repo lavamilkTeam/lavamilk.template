@@ -34,3 +34,7 @@ PocketBase `.pb.js` 钩子中的动态 `require(__hooks + ...)` 是框架运行�
 ## 发布边界
 
 `ops/deploy/package.py` 只打包前端构建结果和 Git 跟踪的后端运行文件；`ops/deploy/deploy.py` 是部署模块的公开入口，独立安装在服务器，不从发布包执行运维脚本。部署模块不被应用源码导入。Python 测试通过其公开入口覆盖坏包、路径穿越、迁移拦截和实际文件回滚；服务命令与 HTTP 检查在测试中替换。`npm run test:deploy` 已加入 `check:all`。部署不执行数据库迁移、CMS 同步或修改服务凭据，配置步骤见 [deployment-cicd.md](deployment-cicd.md)。
+
+## 账户与聊天持久化设计（待接入）
+
+[数据库方案](database/account-chat.md) 与 [设计 DDL](database/account-chat.sql) 定义四张新增表及迁移、任务租约、幂等和账户隔离策略。它们不会被应用启动或生产发布自动执行。`server/community/tests/account-chat-schema.test.js` 直接测试这一公开 DDL 的数据库约束，并通过既有应用公开入口建立基线；不导入私有 store 实现。
