@@ -135,7 +135,18 @@
     "kicker": "为快速交付而生的平台",
     "trustedBy": "深受高速成长团队的信赖",
     "featuresKicker": "功能",
-    "featuresTitle": "桌面级 SMT，一应俱全。",
+    "featuresTitle": "查看我们的官方开源项目",
+    "projectCta": "在 GitHub 查看项目",
+    "projects": {
+      "smt": {
+        "title": "开源四吸头桌面 SMT",
+        "description": "LavamilkSMT：面向桌面电子制作的开源四吸头 SMT 项目。"
+      },
+      "lmBox": {
+        "title": "一键转换制板文件为 3D 打印钢网",
+        "description": "lmBox：将制板文件转换为 3D 打印钢网，让打样准备更方便。"
+      }
+    },
     "featuresSubtitle": "从结构件到固件全部开源，设备可以自己组装，你只管把想法变成电路板。",
     "communityTitle": "亦或是加入我们的线上/线下社群？与更多开发者/创业者交流",
     "joinTitle": "快速加入我们的线上社群！我们时不时在线下举办各类论坛活动"
@@ -388,8 +399,8 @@
   "content": {
     "site": {
       "name": "Lavamilk",
-      "heroTitle": "更棒的面向于个人极客或小型企业的桌面级 SMT 设备",
-      "heroSubtitle": "Lavamilk 是岩崎世纪旗下的开源工具研发团队，你可以自己制作开源的 SMT 设备或者加入研发，并使用其快速进行 SMT 打样贴片。",
+      "heroTitle": "一个开放的软件与电子硬件社区",
+      "heroSubtitle": "汇聚热爱编程与电子制作的人，一起分享知识、开发工具，让想法成为作品",
       "footerBlurb": "在边缘网络上构建、部署与扩展应用的开发者平台。"
     },
     "features": [

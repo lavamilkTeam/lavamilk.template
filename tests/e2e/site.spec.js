@@ -9,41 +9,47 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/pig-king/account-leaderboard', route => route.fulfill({ json: { items: [] } }));
 });
 
-test('navigation uses shareable paths and supports reload, back and forward', async ({ page }) => {
+test('top navigation only exposes rankings and supports reload, back and forward', async ({ page }) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
-  await page.locator('header a[href="/features"]').click();
-  await expect(page).toHaveURL(/\/features$/);
-  await expect(page.locator('h1')).toContainText('Built for desktop SMT');
-  await page.locator('header a[href="/docs"]').click();
-  await expect(page).toHaveURL(/\/docs$/);
+  const navigation = page.locator('header nav');
+  await expect(navigation.getByRole('link')).toHaveCount(1);
+  await expect(navigation.getByRole('link', { name: 'Pig Rankings', exact: true })).toBeVisible();
+  await expect(page.locator('header a[href="/features"], header a[href="/docs"], header a[href="/ai-agent"]')).toHaveCount(0);
+  await expect(page.locator('header .community-trigger')).toHaveCount(0);
+  await navigation.getByRole('link').click();
+  await expect(page).toHaveURL(/\/pig-king$/);
+  await expect(navigation.getByRole('link')).toHaveAttribute('aria-current', 'page');
   await page.reload();
-  await expect(page.locator('h1')).toHaveText('Docs');
+  await expect(page.locator('.pig-page')).toBeVisible();
+  await page.locator('header a[href="/"]').click();
   await page.goBack();
-  await expect(page).toHaveURL(/\/features$/);
-  await expect(page.locator('h1')).toContainText('Built for desktop SMT');
+  await expect(page).toHaveURL(/\/pig-king$/);
+  await expect(page.locator('.pig-page')).toBeVisible();
   await page.goForward();
-  await expect(page.locator('h1')).toHaveText('Docs');
+  await expect(page).toHaveURL('http://127.0.0.1:4173/');
   expect(errors).toEqual([]);
 });
 
-test('mobile menu closes after navigating and locale survives reload', async ({ page }) => {
+test('mobile rankings stay visible without a drawer and locale survives reload', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Menu', exact: true }).click();
-  await page.locator('header a[href="/docs"]:visible').click();
-  await expect(page).toHaveURL(/\/docs$/);
-  await expect(page.locator('header nav:visible')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Menu', exact: true }).click();
-  await page.locator('header select:visible').selectOption('zh-CN');
+  await expect(page.getByRole('button', { name: 'Menu', exact: true })).toHaveCount(0);
+  const ranking = page.locator('header nav a[href="/pig-king"]');
+  await expect(ranking).toBeVisible();
+  await ranking.click();
+  await expect(page).toHaveURL(/\/pig-king$/);
+  await page.locator('header select').selectOption('zh-CN');
   await page.reload();
-  await expect(page.locator('h1')).not.toHaveText('Docs');
+  await expect(ranking).toHaveText('猪猪榜');
+  await expect(ranking).toBeVisible();
+  await expect(page.locator('header nav a')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('community link, direct URL and legacy OAuth hash all resolve to the ranking page', async ({ page }) => {
+test('ranking link, direct URL and legacy OAuth hash all resolve to the ranking page', async ({ page }) => {
   await page.goto('/');
-  await page.locator('header .community-trigger:visible').click();
   await page.locator('header a[href="/pig-king"]:visible').click();
   await expect(page).toHaveURL(/\/pig-king$/);
   await expect(page.locator('.pig-page')).toBeVisible();
@@ -52,7 +58,7 @@ test('community link, direct URL and legacy OAuth hash all resolve to the rankin
   await page.goto('/?pig_auth=oauthFailed&ref=legacy#pig-king');
   await expect(page).toHaveURL(/\/pig-king\?ref=legacy$/);
   await expect(page.getByRole('alert')).toContainText('GitHub authorization was not completed');
-  await page.locator('header a[href="/docs"]').click();
+  await page.locator('header a[href="/"]').click();
   await page.goBack();
   await expect(page.locator('.pig-page')).toBeVisible();
 });
@@ -81,16 +87,13 @@ test('failed refresh retains the displayed report and the leaderboard', async ({
   await expect(page.locator('.pig-rank-list')).toContainText('demo');
 });
 
-test('AI agent opens from Community, loads its local template and requires GitHub login before sending', async ({ page }) => {
+test('AI agent remains accessible by URL and requires GitHub login before sending', async ({ page }) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('/');
-  const navigation = page.locator('header nav:visible');
-  await navigation.getByRole('button', { name: 'Community', exact: true }).click();
-  await navigation.getByRole('link', { name: 'AI Agents' }).click();
-  await expect(page).toHaveURL(/\/ai-agent$/);
-  await expect(navigation.getByRole('button', { name: 'Community', exact: true })).toHaveAttribute('aria-expanded', 'false');
-  await expect(navigation.getByRole('button', { name: 'Community', exact: true })).toHaveClass(/community-active/);
+  await page.goto('/ai-agent');
+  const navigation = page.locator('header nav');
+  await expect(navigation.getByRole('link')).toHaveCount(1);
+  await expect(navigation.getByRole('link', { name: 'Pig Rankings', exact: true })).toBeVisible();
   const chat = page.frameLocator('iframe[title="AI Agents"]');
   await expect(chat.getByRole('heading', { name: 'What shall we work on today?' })).toBeVisible();
   await chat.getByRole('button', { name: 'Help me review some code' }).click();
@@ -103,14 +106,13 @@ test('AI agent opens from Community, loads its local template and requires GitHu
   expect(errors).toEqual([]);
 });
 
-test('AI agent supports Chinese mobile navigation without horizontal overflow', async ({ page }) => {
+test('AI agent supports Chinese mobile direct access without horizontal overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Menu', exact: true }).click();
-  await page.locator('header select:visible').selectOption('zh-CN');
-  await page.getByRole('button', { name: '社区', exact: true }).click();
-  await page.getByRole('link', { name: 'AI智能体', exact: true }).click();
-  await expect(page.locator('header nav:visible')).toHaveCount(0);
+  await page.locator('header select').selectOption('zh-CN');
+  await page.goto('/ai-agent');
+  await expect(page.locator('header nav a')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Menu', exact: true })).toHaveCount(0);
   const chat = page.frameLocator('iframe[title="AI智能体"]');
   await expect(chat.getByRole('heading', { name: '今天，想一起做点什么？' })).toBeVisible();
   await expect(chat.getByRole('status')).toContainText('登录 GitHub 后开始对话');
@@ -128,8 +130,7 @@ test('one GitHub session covers header, ranking and Gemma chat, including sign o
   await page.goto('/pig-king');
   await expect(page.locator('header summary')).toHaveText('demo');
   await expect(page.locator('.pig-identity strong')).toHaveText('demo');
-  await page.locator('header .community-trigger:visible').click();
-  await page.getByRole('link', { name: 'AI Agents', exact: true }).click();
+  await page.goto('/ai-agent');
   const chat = page.frameLocator('iframe');
   await chat.getByRole('textbox').fill('Hello Gemma');
   await chat.getByRole('button', { name: 'Send', exact: true }).click();

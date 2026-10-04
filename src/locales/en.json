@@ -135,7 +135,18 @@
     "kicker": "The platform for shipping fast",
     "trustedBy": "Trusted by teams at fast-moving companies",
     "featuresKicker": "Features",
-    "featuresTitle": "Desktop SMT, fully equipped.",
+    "featuresTitle": "Explore our official open-source projects",
+    "projectCta": "View project on GitHub",
+    "projects": {
+      "smt": {
+        "title": "Open-source four-nozzle desktop SMT",
+        "description": "LavamilkSMT: an open-source four-nozzle SMT project for desktop electronics making."
+      },
+      "lmBox": {
+        "title": "Turn PCB fabrication files into 3D-printable stencils",
+        "description": "lmBox: convert PCB fabrication files into 3D-printable stencils in one click to simplify prototyping."
+      }
+    },
     "featuresSubtitle": "From mechanical parts to firmware, everything is open source and you can build it yourself — you just turn ideas into boards.",
     "communityTitle": "Or join our online and offline community to talk with more developers and entrepreneurs.",
     "joinTitle": "Join our online community! We also host offline forums and events from time to time."

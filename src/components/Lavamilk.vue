@@ -1,28 +1,23 @@
 <script setup>
 // Lavamilk — 官网单文件组件（基于 SaaS Design 的模板改造，MIT licensed）
-import { computed, defineAsyncComponent, ref, watch } from "vue";
-import { RouterLink, useRoute } from 'vue-router';
+import { computed, defineAsyncComponent } from "vue";
+import { RouterLink } from 'vue-router';
 import { useI18n } from "vue-i18n";
 import { useSiteContent } from "../composables/useSiteContent";
 import LanguageSwitcher from "./LanguageSwitcher.vue";
-import CommunityMenu from "./CommunityMenu.vue";
 import GitHubAccount from "./GitHubAccount.vue";
 
 const AiAgent = defineAsyncComponent(() => import('../features/ai-agent/AiAgent.vue'));
 const PigKing = defineAsyncComponent(() => import('../features/pig-king/PigKing.vue'));
 
 defineProps({ page: { type: String, default: 'home' }, onSignIn: Function, onSignUp: Function });
-const route = useRoute();
 
-const { t, tm } = useI18n();
+const { t, tm, locale } = useI18n();
 
 // 站点内容：英文读 CMS（后台可编辑），其它语言读语言包
 const { site, features, tiers, faqs, changelog } = useSiteContent();
 
-const open = ref(false);
 const year = new Date().getFullYear();
-
-watch(() => route.fullPath, () => { open.value = false; });
 
 const logos = ["Northwind", "Vela", "Cobalt", "Mainsail", "Brightline", "Orbit", "Tidewater"];
 
@@ -30,23 +25,16 @@ const logos = ["Northwind", "Vela", "Cobalt", "Mainsail", "Brightline", "Orbit",
 const REPO_URL = "https://github.com/lavamilkTeam/lavamilk.template";
 // 「开始部署」按钮跳转的开源仓库
 const SMT_REPO_URL = "https://github.com/lavamilkTeam/LavamilkSMT";
+const OPEN_SOURCE_PROJECTS = [
+  { key: 'smt', href: SMT_REPO_URL },
+  { key: 'lmBox', href: 'https://github.com/lavamilkTeam/lmBox' },
+];
 // 线上社群（QQ 群邀请链接）
 const COMMUNITY_URL = "https://qm.qq.com/q/fWFuAJosL0";
-// 社区地址暂留空，填写后菜单自动启用跳转。
-const LAVAPIGGY_URL = "";
 
 // 暂时隐藏的页面：代码、文案、CMS 数据全部保留，只是不显示入口。
 // 想重新放出，把对应项从这个数组里删掉即可。
 const HIDDEN_PAGES = ["pricing", "changelog"];
-
-const NAV = computed(() =>
-  [
-    { label: t("nav.product"), p: "features" },
-    { label: t("nav.docs"), p: "docs" },
-    { label: t("nav.pricing"), p: "pricing" },
-    { label: t("nav.changelog"), p: "changelog" },
-  ].filter((n) => !HIDDEN_PAGES.includes(n.p))
-);
 
 const FOOT = computed(() =>
   tm("footer.cols").map((col) => ({
@@ -79,35 +67,26 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
 
       <!-- HEADER -->
       <header class="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
-        <div class="flex h-14 w-full items-center justify-between px-6">
-          <div class="flex items-center gap-8">
+        <div class="flex min-h-14 w-full flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6">
+          <div class="flex items-center gap-3 sm:gap-8">
             <RouterLink :to="{ name: 'home' }" class="flex cursor-pointer items-center gap-2">
               <img src="/lavamilk-logo.png" alt="Lavamilk" class="brand-logo h-[38px] w-auto" />
             </RouterLink>
-            <nav class="hidden items-center gap-6 lg:flex">
-              <RouterLink v-for="n in NAV" :key="n.label" :to="{ name: n.p }" :class="'cursor-pointer text-[13px] transition-colors hover:text-foreground ' + (page === n.p ? 'text-foreground' : 'text-muted-foreground')">{{ n.label }}</RouterLink>
-              <CommunityMenu :active="false" :community-url="LAVAPIGGY_URL" />
+            <nav class="flex items-center">
+              <RouterLink :to="{ name: 'pig-king' }" class="cursor-pointer whitespace-nowrap text-[13px] text-muted-foreground transition-colors hover:text-foreground">{{ t('nav.pigKing') }}</RouterLink>
             </nav>
           </div>
           <div class="flex items-center gap-2">
-            <LanguageSwitcher class="hidden sm:block" />
+            <LanguageSwitcher />
             <GitHubAccount />
-            <a :href="SMT_REPO_URL" target="_blank" rel="noopener noreferrer" class="hidden cursor-pointer items-center justify-center rounded-md bg-foreground sm:inline-flex px-3.5 py-1.5 text-[13px] font-semibold text-background hover:opacity-90">{{ t('action.startDeploying') }}</a>
-            <button class="-mr-1 rounded-md p-2 text-muted-foreground hover:bg-muted lg:hidden" @click="open = !open" aria-label="Menu">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path v-if="open" d="M18 6 6 18M6 6l12 12" /><path v-else d="M3 6h18M3 12h18M3 18h18" /></svg>
-            </button>
           </div>
         </div>
-        <nav v-if="open" class="space-y-1 border-t border-border px-6 py-3 lg:hidden">
-          <RouterLink v-for="n in NAV" :key="n.label" :to="{ name: n.p }" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted">{{ n.label }}</RouterLink>
-          <CommunityMenu mobile :active="false" :community-url="LAVAPIGGY_URL" />
-          <div class="pt-1"><LanguageSwitcher /></div>
-        </nav>
       </header>
 
       <main class="w-full">
-        <section class="border-b border-border px-6 pb-16 pt-16 text-center sm:px-16 sm:pt-24 lg:px-28">
-          <h1 class="df-rise mx-auto max-w-3xl text-4xl font-bold leading-[1.05] tracking-[-0.03em] sm:text-6xl">{{ site.heroTitle }}</h1>
+        <section :lang="locale" class="@container border-b border-border px-6 pb-16 pt-16 text-center sm:px-16 sm:pt-24 lg:px-28">
+          <h1 class="df-rise mx-auto max-w-3xl text-4xl font-bold leading-[1.05] tracking-[-0.03em] sm:text-6xl [&:lang(zh-CN)]:max-w-none [&:lang(zh-CN)]:whitespace-nowrap [&:lang(zh-CN)]:text-[clamp(1rem,5.5cqi,3.75rem)]">{{ site.heroTitle }}</h1>
+          <p class="df-rise-2 mx-auto mt-6 max-w-3xl text-lg font-semibold leading-relaxed text-muted-foreground sm:text-xl [&:lang(zh-CN)]:max-w-none [&:lang(zh-CN)]:whitespace-nowrap [&:lang(zh-CN)]:text-[min(1.25rem,2.9cqi)]">{{ site.heroSubtitle }}</p>
           <div class="df-rise-2 mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <a :href="SMT_REPO_URL" target="_blank" rel="noopener noreferrer" class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md bg-foreground px-5 py-2.5 text-sm font-semibold text-background hover:opacity-90">{{ t('action.startDeploying') }} <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg></a>
             <RouterLink :to="{ name: 'docs' }" class="inline-flex cursor-pointer items-center justify-center rounded-md border border-border bg-card px-5 py-2.5 text-sm font-semibold hover:bg-muted">{{ t('action.readDocs') }}</RouterLink>
@@ -135,11 +114,12 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
           <div class="max-w-2xl">
             <h2 class="text-3xl font-bold tracking-[-0.02em] sm:text-4xl">{{ t('home.featuresTitle') }}</h2>
           </div>
-          <div class="mt-9 grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
-            <div v-for="f in features" :key="f.t" class="flex flex-col bg-card p-6">
-              <span class="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted text-foreground"><svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7l9-4 9 4-9 4-9-4zM3 12l9 4 9-4M3 17l9 4 9-4" /></svg></span>
-              <h3 class="mt-4 text-base font-semibold tracking-tight">{{ f.t }}</h3>
-              <p class="mt-1.5 text-sm leading-relaxed text-muted-foreground">{{ f.d }}</p>
+          <div class="mt-9 grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2">
+            <div v-for="project in OPEN_SOURCE_PROJECTS" :key="project.key" class="flex flex-col bg-card p-6">
+              <span class="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted text-foreground"><svg aria-hidden="true" class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7l9-4 9 4-9 4-9-4zM3 12l9 4 9-4M3 17l9 4 9-4" /></svg></span>
+              <h3 class="mt-4 text-lg font-semibold tracking-tight">{{ t(`home.projects.${project.key}.title`) }}</h3>
+              <p class="mt-1.5 flex-1 text-sm leading-relaxed text-muted-foreground">{{ t(`home.projects.${project.key}.description`) }}</p>
+              <a :href="project.href" target="_blank" rel="noopener noreferrer" class="mt-6 inline-flex cursor-pointer items-center justify-center gap-1.5 self-start rounded-md bg-foreground px-4 py-2 text-sm font-semibold text-background hover:opacity-90">{{ t('home.projectCta') }} <svg aria-hidden="true" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17 17 7M7 7h10v10" /></svg></a>
             </div>
           </div>
         </section>
@@ -161,30 +141,20 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
     <template v-else>
       <!-- HEADER -->
       <header class="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
-        <div class="flex h-14 w-full items-center justify-between px-6">
-          <div class="flex items-center gap-8">
+        <div class="flex min-h-14 w-full flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6">
+          <div class="flex items-center gap-3 sm:gap-8">
             <RouterLink :to="{ name: 'home' }" class="flex cursor-pointer items-center gap-2">
               <img src="/lavamilk-logo.png" alt="Lavamilk" class="brand-logo h-[38px] w-auto" />
             </RouterLink>
-            <nav class="hidden items-center gap-6 lg:flex">
-              <RouterLink v-for="n in NAV" :key="n.label" :to="{ name: n.p }" :class="'cursor-pointer text-[13px] transition-colors hover:text-foreground ' + (page === n.p ? 'text-foreground' : 'text-muted-foreground')">{{ n.label }}</RouterLink>
-              <CommunityMenu :active="page === 'pig-king' || page === 'ai-agent'" :community-url="LAVAPIGGY_URL" />
+            <nav class="flex items-center">
+              <RouterLink :to="{ name: 'pig-king' }" :class="'cursor-pointer whitespace-nowrap text-[13px] transition-colors hover:text-foreground ' + (page === 'pig-king' ? 'text-foreground' : 'text-muted-foreground')">{{ t('nav.pigKing') }}</RouterLink>
             </nav>
           </div>
           <div class="flex items-center gap-2">
-            <LanguageSwitcher class="hidden sm:block" />
+            <LanguageSwitcher />
             <GitHubAccount />
-            <a :href="SMT_REPO_URL" target="_blank" rel="noopener noreferrer" class="hidden cursor-pointer items-center justify-center rounded-md bg-foreground sm:inline-flex px-3.5 py-1.5 text-[13px] font-semibold text-background hover:opacity-90">{{ t('action.startDeploying') }}</a>
-            <button class="-mr-1 rounded-md p-2 text-muted-foreground hover:bg-muted lg:hidden" @click="open = !open" aria-label="Menu">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path v-if="open" d="M18 6 6 18M6 6l12 12" /><path v-else d="M3 6h18M3 12h18M3 18h18" /></svg>
-            </button>
           </div>
         </div>
-        <nav v-if="open" class="space-y-1 border-t border-border px-6 py-3 lg:hidden">
-          <RouterLink v-for="n in NAV" :key="n.label" :to="{ name: n.p }" class="block cursor-pointer rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-muted">{{ n.label }}</RouterLink>
-          <CommunityMenu mobile :active="page === 'pig-king' || page === 'ai-agent'" :community-url="LAVAPIGGY_URL" />
-          <div class="pt-1"><LanguageSwitcher /></div>
-        </nav>
       </header>
 
       <main class="w-full">
