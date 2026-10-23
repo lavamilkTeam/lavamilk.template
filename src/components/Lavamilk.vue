@@ -23,7 +23,7 @@ const logos = ["Northwind", "Vela", "Cobalt", "Mainsail", "Brightline", "Orbit",
 
 // 顶部横幅指向的开源仓库
 const REPO_URL = "https://github.com/lavamilkTeam/lavamilk.template";
-// 「开始部署」按钮跳转的开源仓库
+// 「快速开始」按钮跳转的开源仓库
 const SMT_REPO_URL = "https://github.com/lavamilkTeam/LavamilkSMT";
 const OPEN_SOURCE_PROJECTS = [
   { key: 'smt', href: SMT_REPO_URL },
@@ -73,7 +73,7 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
               <img src="/lavamilk-logo.png" alt="Lavamilk" class="brand-logo h-[38px] w-auto" />
             </RouterLink>
             <nav class="flex items-center">
-              <RouterLink :to="{ name: 'pig-king' }" class="cursor-pointer whitespace-nowrap text-[13px] text-muted-foreground transition-colors hover:text-foreground">{{ t('nav.pigKing') }}</RouterLink>
+              <button type="button" disabled class="cursor-default whitespace-nowrap text-[13px] text-muted-foreground">{{ t('nav.toolbox') }}</button>
             </nav>
           </div>
           <div class="flex items-center gap-2">
@@ -147,7 +147,7 @@ const isMonthly = (p) => typeof p === "string" && p.trim().startsWith("$");
               <img src="/lavamilk-logo.png" alt="Lavamilk" class="brand-logo h-[38px] w-auto" />
             </RouterLink>
             <nav class="flex items-center">
-              <RouterLink :to="{ name: 'pig-king' }" :class="'cursor-pointer whitespace-nowrap text-[13px] transition-colors hover:text-foreground ' + (page === 'pig-king' ? 'text-foreground' : 'text-muted-foreground')">{{ t('nav.pigKing') }}</RouterLink>
+              <button type="button" disabled class="cursor-default whitespace-nowrap text-[13px] text-muted-foreground">{{ t('nav.toolbox') }}</button>
             </nav>
           </div>
           <div class="flex items-center gap-2">

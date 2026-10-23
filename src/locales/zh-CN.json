@@ -6,6 +6,7 @@
   "nav": {
     "community": "社区",
     "pigKing": "猪猪榜",
+    "toolbox": "工具箱",
     "lavapiggy": "lavapiggy 社区",
     "product": "产品",
     "docs": "文档",
@@ -112,7 +113,7 @@
   },
   "action": {
     "signIn": "登录",
-    "startDeploying": "开始部署",
+    "startDeploying": "快速开始",
     "readDocs": "阅读文档",
     "readMore": "了解更多 →",
     "readPost": "阅读文章",
@@ -143,8 +144,8 @@
         "description": "LavamilkSMT：面向桌面电子制作的开源四吸头 SMT 项目。"
       },
       "lmBox": {
-        "title": "一键转换制板文件为 3D 打印钢网",
-        "description": "lmBox：将制板文件转换为 3D 打印钢网，让打样准备更方便。"
+        "title": "lmbox：Agent辅助的科学仿真工具",
+        "description": "lmBox：内置 Agent，集成逻辑电路、电子电路、CFD 等科学仿真与工作流编排，在同一平台串联仿真与自动化任务。"
       }
     },
     "featuresSubtitle": "从结构件到固件全部开源，设备可以自己组装，你只管把想法变成电路板。",

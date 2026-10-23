@@ -6,6 +6,7 @@
   "nav": {
     "community": "Community",
     "pigKing": "Pig Rankings",
+    "toolbox": "Toolbox",
     "lavapiggy": "lavapiggy Community",
     "product": "Product",
     "docs": "Docs",
@@ -112,7 +113,7 @@
   },
   "action": {
     "signIn": "Sign in",
-    "startDeploying": "Start deploying",
+    "startDeploying": "Quick start",
     "readDocs": "Read the docs",
     "readMore": "Read more →",
     "readPost": "Read post",
@@ -143,8 +144,8 @@
         "description": "LavamilkSMT: an open-source four-nozzle SMT project for desktop electronics making."
       },
       "lmBox": {
-        "title": "Turn PCB fabrication files into 3D-printable stencils",
-        "description": "lmBox: convert PCB fabrication files into 3D-printable stencils in one click to simplify prototyping."
+        "title": "lmbox: Agent-assisted scientific simulation tools",
+        "description": "lmBox: built-in Agent support brings logic circuits, electronic circuits, CFD, and other scientific simulations together with workflow orchestration, connecting simulation and automation in one platform."
       }
     },
     "featuresSubtitle": "From mechanical parts to firmware, everything is open source and you can build it yourself — you just turn ideas into boards.",
