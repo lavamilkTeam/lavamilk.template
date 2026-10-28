@@ -117,11 +117,14 @@ def publish(stage, backup, root=ROOT):
     # Only an administrator can approve hashes after a backup and explicit migration.
     adapter = 'server/community/lib/mysql.js'
     migration_files = tree_hash(stage / 'server/migrations')
+    account_files = tree_hash(stage / 'server/accounts')
+    approved = json.loads(SCHEMA_APPROVAL.read_text()) if SCHEMA_APPROVAL.exists() else {}
     changed = (stage / adapter).read_bytes() != (root / 'community' / adapter).read_bytes()
-    if migration_files or changed:
-        approved = json.loads(SCHEMA_APPROVAL.read_text()) if SCHEMA_APPROVAL.exists() else {}
+    if migration_files or changed or account_files or 'accounts' in approved:
         candidate = {'adapter': hashlib.sha256((stage / adapter).read_bytes()).hexdigest(),
                      'migrations': migration_files}
+        if account_files or 'accounts' in approved:
+            candidate['accounts'] = account_files
         if candidate != approved:
             raise ValueError('Unapproved MySQL migration or adapter; back up and migrate manually first')
     if tree_hash(stage / 'pocketbase/pb_migrations') != tree_hash(root / 'app/pocketbase/pb_migrations'):

@@ -2,6 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import mysql from 'mysql2/promise';
+import { migratePostgres, verifyPostgresSchema, checkPostgresSchema } from './lib/postgres.js';
 
 const versions = ['000-community', '001-account-chat'];
 async function definitions() {
@@ -10,7 +11,9 @@ async function definitions() {
     return { version, sql, checksum: createHash('sha256').update(sql).digest('hex') };
   }));
 }
-export async function verifySchema(db) {
+export async function verifySchema(db, dialect = 'mysql') {
+  if (dialect === 'postgresql') return verifyPostgresSchema(db);
+  if (dialect !== 'mysql') throw new Error('Unsupported database dialect');
   const [rows] = await db.query('SELECT version,checksum,state FROM schema_migrations');
   for (const migration of await definitions()) {
     const saved = rows.find(row => row.version === migration.version);
@@ -18,6 +21,9 @@ export async function verifySchema(db) {
   }
 }
 export async function migrate(databaseUrl) {
+  const protocol = new URL(databaseUrl).protocol;
+  if (['postgres:', 'postgresql:'].includes(protocol)) return migratePostgres(databaseUrl);
+  if (protocol !== 'mysql:') throw new Error('Unsupported database protocol');
   const db = await mysql.createConnection({ uri: databaseUrl, timezone: 'Z' });
   try {
     const [[lock]] = await db.query("SELECT GET_LOCK('lavamilk_schema_migrations', 30) AS acquired");
@@ -43,4 +49,12 @@ export async function migrate(databaseUrl) {
     }
     await verifySchema(db);
   } finally { await db.end(); }
+}
+
+export async function checkSchema(databaseUrl) {
+  const protocol = new URL(databaseUrl).protocol;
+  if (['postgres:', 'postgresql:'].includes(protocol)) return checkPostgresSchema(databaseUrl);
+  if (protocol !== 'mysql:') throw new Error('Unsupported database protocol');
+  const db = await mysql.createConnection({ uri: databaseUrl, timezone: 'Z' });
+  try { await verifySchema(db); } finally { await db.end(); }
 }

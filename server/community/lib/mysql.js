@@ -17,6 +17,7 @@ export async function openStore(url) {
     retryAfter:state?.review?.waitUntil ? Math.max(0,Math.ceil((state.review.waitUntil-Date.now())/1000)):0,processed:state?.review?.reviewed || state?.[state?.phase]?.sampled || 0}; }
   return {
     ...createChatStore(pool, transaction),
+    dialect: 'mysql',
     async health() { await pool.query('SELECT 1'); },
     close: () => pool.end(),
     async saveOAuth(hash, verifier, expires) {

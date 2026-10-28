@@ -4,9 +4,10 @@
   "type": "module",
   "scripts": {
     "start": "node start.js",
-    "test": "node --test --test-concurrency=1 community/tests/*.test.js"
+    "test": "node --test --test-concurrency=1 community/tests/application.test.js community/tests/chat-persistence.test.js community/tests/account-chat-schema.test.js"
   },
   "dependencies": {
-    "mysql2": "^3.15.0"
+    "mysql2": "^3.15.0",
+    "pg": "^8.23.1"
   }
 }

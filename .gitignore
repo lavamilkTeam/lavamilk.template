@@ -32,3 +32,6 @@ __pycache__/
 # Reviewed schema design, not a database dump
 !docs/database/account-chat.sql
 !server/migrations/*.sql
+!server/migrations/postgres/*.sql
+!server/accounts/schema.sql
+!server/accounts/tests/fixtures/shared-schema.sql

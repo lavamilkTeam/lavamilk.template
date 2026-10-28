@@ -130,6 +130,16 @@ class DeploymentTests(unittest.TestCase):
                 deploy.publish(stage, self.base / 'second-backup', root)
             self.assertFalse((self.base / 'second-backup').exists())
 
+    def test_account_integration_cannot_be_removed_by_an_old_release(self):
+        root, stage, backup = self.setup_release()
+        approval = self.base / 'approved.json'
+        approval.write_text(json.dumps({
+            'adapter': hashlib.sha256((stage / 'server/community/lib/mysql.js').read_bytes()).hexdigest(),
+            'migrations': {}, 'accounts': {'index.js': 'approved-hash'}}))
+        with patch.object(deploy, 'SCHEMA_APPROVAL', approval), self.assertRaisesRegex(ValueError, 'Unapproved'):
+            deploy.publish(stage, backup, root)
+        self.assertFalse(backup.exists())
+
 
 if __name__ == '__main__':
     unittest.main()

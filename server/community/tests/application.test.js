@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { createApplication } from '../index.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
-test('MySQL OAuth, access control, durable personal rankings and refresh recovery', { skip: !databaseUrl }, async (t) => {
+test('OAuth, access control, durable personal rankings and refresh recovery', { skip: !databaseUrl }, async (t) => {
   let clock=Date.now(), identity={id:101,login:'demo',type:'User'}, authChallenge, exchanges=0, failGithub=false;
   const origin='https://lavamilk.test';
   const commits=Array.from({length:22},(_,i)=>({sha:String(i),parents:[{}],repository:{full_name:'demo/repo',private:false},html_url:'https://github.com/demo/repo/commit/'+i,

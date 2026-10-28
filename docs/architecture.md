@@ -1,5 +1,21 @@
 # 模块边界与验证
 
+## 统一账户库（2026-10-28）
+
+官网账户现接入独立 `server/accounts` 模块：公共 index.js 提供账户身份与资料访问，import.js 提供显式迁移，lib 为私有 PG 实现。社区 HTTP/OAuth 只通过公共入口访问；既有 GitHub id 继续用于聊天/榜单外键，响应增加 accountId 作为跨平台 UUID。生产账户数据已经迁到 lavamilk_account，社区业务数据库仍为 MySQL。迁移核对、配置、会话兼容与回退限制见 [统一账户迁移](database/shared-accounts.md)。
+
+`npm run test:accounts` 用独立 MySQL + PostgreSQL 验证真实账户迁移与 HTTP 登录流程，已加入 check:all 和 CI。共享基础账户表的测试 fixture 明确是 manage schema v1 合同副本，不跨仓库导入私有实现。上线账户代码被部署接收器的 accounts 哈希门禁保护。
+
+## PostgreSQL 本地接入（2026-10-27）
+
+账户、会话、榜单、扫描任务和聊天现已支持 PostgreSQL 18。`createApplication` 按 `DATABASE_URL` 的协议选择 MySQL 或 PostgreSQL，公开 HTTP 接口保持一致；健康接口的 `database` 字段为 `mysql` 或 `postgresql`。下文原有 MySQL 描述继续适用于线上旧配置；本次没有切换生产库。完整接口清单、启动和上线前置事项见 [PostgreSQL 接入](database/postgres.md)。
+
+`server/community/lib/postgres.js` 和 `postgres-chat-store.js` 是社区模块的私有适配器，使用 pg 原生参数化 SQL、单连接短事务和行锁。前端不感知驱动，也不能导入适配器。不同驱动保留独立 SQL 实现，以同一组公开 HTTP 测试约束行为，不在运行时改写 MySQL SQL。
+
+`server/migrations/index.js` 是两种数据库共同的迁移入口；PostgreSQL 的 `lib/postgres.js` 为私有实现，`postgres/*.sql` 为版本化输入。PostgreSQL 迁移使用事务和 advisory lock，DDL 与版本校验记录原子提交；应用启动只校验，不执行迁移。历史 MySQL SQL 与 checksum 未修改。
+
+`npm run db:setup` 建立仅绑定本机的持久 PostgreSQL 开发库，并保存 gitignored 的本地凭据；`npm run dev:api:pg` 启动使用它的官网 API。`npm run test:postgres` 使用另一套临时容器/测试库，覆盖 OAuth、榜单、聊天幂等及隔离、约束、微秒分页、bigint 和迁移校验。`check:all` 与 CI 同时验证 MySQL、PostgreSQL 和浏览器。测试中的 `database.js` 只适配夹具使用的通用 SQL 参数与返回格式，不用于生产。
+
 ## 模块
 
 - `src/features/ai-agent/AiAgent.vue` 是官网 `/ai-agent` 页面入口，通过同源 iframe 展示 `/ai-chat/`。`apps/ai-agent` 独立构建 Nuxt UI Chat 模板，不跨应用导入源码或服务端模块；复制构建结果由 `scripts/copy-ai-agent.mjs` 完成。通过同源 `/api/pig-king/chat/conversations` 调用持久化聊天接口，复用 GitHub HttpOnly 会话；消息保存在 MySQL，浏览器只缓存所选会话 ID。聊天应用通过自己的 `api.js` 访问 HTTP，不接触模型密钥。

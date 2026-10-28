@@ -1,0 +1,78 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {randomBytes,createHash} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
+import {createServer} from 'node:http';
+import mysql from 'mysql2/promise';
+import pg from 'pg';
+import {importWebsiteAccounts} from '../import.js';
+import {openAccountRegistry} from '../index.js';
+import {createApplication} from '../../community/index.js';
+
+test('account migration preserves data and sessions; shared identity controls new logins and profiles',async t=>{
+  const sourceUrl=process.env.TEST_DATABASE_URL,targetUrl=process.env.TEST_POSTGRES_URL;
+  assert([sourceUrl,targetUrl].every(v=>v && new URL(v).pathname.includes('test')));
+  const root=new pg.Client({connectionString:targetUrl}); await root.connect();
+  const schema='account_test_'+randomBytes(8).toString('hex'); await root.query(`CREATE SCHEMA ${schema}`);
+  const url=new URL(targetUrl); url.searchParams.set('options','-csearch_path='+schema);
+  const db=new pg.Client({connectionString:url.href}); await db.connect();
+  const source=await mysql.createConnection({uri:sourceUrl,timezone:'Z'});
+  let app,server,registry;
+  t.after(async()=>{
+    if(server) await new Promise(r=>server.close(r)); if(app) await app.close(); if(registry) await registry.close();
+    await source.end(); await db.end(); await root.query(`DROP SCHEMA ${schema} CASCADE`); await root.end();
+  });
+  await db.query(await readFile(new URL('./fixtures/shared-schema.sql',import.meta.url),'utf8'));
+  await db.query(await readFile(new URL('../schema.sql',import.meta.url),'utf8'));
+  const id='999999901',emptyId='999999902',token=randomBytes(32).toString('base64url');
+  await source.execute("INSERT INTO community_users(github_id,login,avatar_url) VALUES (?,'account-fixture','https://example.test/a'),(?,'empty-fixture','https://example.test/b')",[id,emptyId]);
+  await source.execute("INSERT INTO account_profiles(github_id,display_name,locale,github_bio,github_synced_at) VALUES (?,'迁移账号 😀','en','原始资料','2026-01-02 03:04:05.123456')",[id]);
+  await source.execute('INSERT INTO community_sessions VALUES(?,?,?)',[createHash('sha256').update(token).digest('hex'),id,Date.now()+600000]);
+  const opts={sourceUrl,targetUrl:url.href};
+  const preview=await importWebsiteAccounts(opts); assert(preview.accounts>=2); assert.equal(preview.sourceHash,preview.targetHash);
+  assert.equal((await db.query('SELECT count(*) FROM account_users')).rows[0].count,'0');
+  const applied=await importWebsiteAccounts({...opts,mode:'apply'}); assert.equal(applied.sourceHash,applied.targetHash);
+  const uid=(await db.query('SELECT user_id FROM website_accounts WHERE github_id=$1',[id])).rows[0].user_id;
+  assert.equal((await importWebsiteAccounts({...opts,mode:'verify'})).targetHash,applied.targetHash);
+  await importWebsiteAccounts({...opts,mode:'apply'});
+  assert.equal((await db.query('SELECT user_id FROM website_accounts WHERE github_id=$1',[id])).rows[0].user_id,uid);
+  const raw=(await db.query('SELECT profile FROM website_accounts WHERE github_id=$1',[id])).rows[0].profile;
+  assert.equal(raw.github_synced_at,'2026-01-02 03:04:05.123456');
+  assert.equal((await db.query('SELECT profile FROM website_accounts WHERE github_id=$1',[emptyId])).rows[0].profile,null);
+  await db.query("UPDATE website_accounts SET login='conflict' WHERE github_id=$1",[id]);
+  await assert.rejects(importWebsiteAccounts({...opts,mode:'apply'}),/differs/);
+  assert.equal((await db.query('SELECT login FROM website_accounts WHERE github_id=$1',[id])).rows[0].login,'conflict');
+  await db.query("UPDATE website_accounts SET login='account-fixture' WHERE github_id=$1",[id]);
+  const origin='https://lavamilk.test';
+  app=await createApplication({databaseUrl:sourceUrl,accountDatabaseUrl:url.href,origin,clientId:'test',clientSecret:'test',startChatWorker:false},
+    {fetch:async address=>new Response(JSON.stringify(address.includes('access_token')?{access_token:'never-store-token'}:{id:999999903,login:'new-account',type:'User',name:'新用户'}))});
+  server=createServer(app.handler); await new Promise(r=>server.listen(0,'127.0.0.1',r));
+  const base='http://127.0.0.1:'+server.address().port+'/api/pig-king/',cookie='pig_session='+token;
+  const request=(path,options={})=>fetch(base+path,{redirect:'manual',headers:{Cookie:cookie,Origin:origin},...options});
+  assert.equal((await (await request('health')).json()).accounts,'postgresql');
+  assert.equal((await (await request('auth/session')).json()).user.accountId,uid);
+  assert.equal((await (await request('me/profile')).json()).profile.displayName,'迁移账号 😀');
+  assert.equal((await request('me/profile',{method:'PATCH',body:JSON.stringify({displayName:'新名字',locale:'zh-CN'})})).status,200);
+  assert.equal((await source.execute('SELECT display_name FROM account_profiles WHERE github_id=?',[id]))[0][0].display_name,'新名字');
+  assert.equal((await db.query('SELECT display_name FROM account_users WHERE id=$1',[uid])).rows[0].display_name,'新名字');
+  for(const table of ['account_users','account_memberships']) {
+    const key=table==='account_users'?'id':'user_id';
+    await db.query(`UPDATE ${table} SET status='disabled' WHERE ${key}=$1`,[uid]);
+    assert.equal((await (await request('auth/session')).json()).user,null);
+    assert.equal((await request('chat/conversations')).status,401);
+    await db.query(`UPDATE ${table} SET status='active' WHERE ${key}=$1`,[uid]);
+  }
+  const start=await request('auth/login'),state=new URL(start.headers.get('location')).searchParams.get('state');
+  const callback=await request('auth/callback?state='+state+'&code=ok',{headers:{Cookie:start.headers.getSetCookie()[0].split(';')[0]}});
+  const fresh=callback.headers.getSetCookie().find(s=>s.startsWith('pig_session=')); assert(fresh);
+  assert.match((await (await request('auth/session',{headers:{Cookie:fresh.split(';')[0]}})).json()).user.accountId,/^[0-9a-f-]{36}$/);
+  registry=await openAccountRegistry(url.href);
+  await Promise.all([1,2].map(()=>registry.signIn({id:'999999903',login:'renamed',avatar:'https://example.test/a'})));
+  assert.equal((await db.query("SELECT count(*) FROM account_identities WHERE provider='github' AND subject='999999903'")).rows[0].count,'1');
+  assert.equal((await db.query('SELECT count(*) FROM website_accounts WHERE profile::text LIKE $1',['%never-store-token%'])).rows[0].count,'0');
+  await db.query('ALTER TABLE website_accounts RENAME TO unavailable_accounts');
+  assert.equal((await request('auth/session')).status,503,'Missing central store must never fall back to legacy identity');
+  await db.query('ALTER TABLE unavailable_accounts RENAME TO website_accounts');
+  assert.equal((await request('auth/logout',{method:'POST'})).status,200);
+  assert.equal((await (await request('auth/session')).json()).user,null);
+});

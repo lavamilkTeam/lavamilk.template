@@ -2,14 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
-import mysql from 'mysql2/promise';
+import { connectTestDatabase } from './database.js';
 import { createApplication } from '../index.js';
 import { migrate } from '../../migrations/index.js';
 
 const databaseUrl=process.env.TEST_DATABASE_URL;
 test('persistent chat: identity isolation, idempotency, recovery, retries and cancellation', {skip:!databaseUrl}, async t=>{
   await migrate(databaseUrl); // Applying an already completed migration must be harmless.
-  const db=await mysql.createConnection(databaseUrl);
+  const db=await connectTestDatabase(databaseUrl);
   const origin='https://persistent.test', modelUrl='http://127.0.0.1:18081/v1/chat/completions';
   let identity=8101, clock=Date.now(), mode='ok', calls=0, release;
   const contexts=[];
@@ -42,7 +42,7 @@ test('persistent chat: identity isolation, idempotency, recovery, retries and ca
   for(const [method,suffix,body] of [['GET','/turns'],['PATCH','',{title:'steal',expectedRevision:'1'}],['DELETE',''],['POST','/turns',{content:'steal',clientRequestId:randomUUID()}]])assert.equal((await req(path+suffix,b,method,body)).status,404);
   assert.equal((await json('chat/conversations',b)).items.length,0);
   async function waitFor(predicate){for(let n=0;n<100;n++){const h=await json(path+'/turns',a);if(predicate(h))return h;await new Promise(r=>setTimeout(r,50));}assert.fail('Turn did not reach expected state');}
-  async function age(){clock+=4000;await db.execute('UPDATE ai_turns SET created_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 5 SECOND),finished_at=IF(finished_at IS NULL,NULL,DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 5 SECOND)) WHERE conversation_id=?',[id]);}
+  async function age(){clock+=4000;const past=new Date(Date.now()-5000);await db.execute('UPDATE ai_turns SET created_at=?,finished_at=CASE WHEN finished_at IS NULL THEN finished_at ELSE ? END WHERE conversation_id=?',[past,past,id]);}
   const input={content:'First question',clientRequestId:randomUUID()};
   const [one,two]=await Promise.all([json(path+'/turns',a,'POST',input,202),json(path+'/turns',a,'POST',input,202)]);
   assert.equal(one.turn.id,two.turn.id);
@@ -63,7 +63,7 @@ test('persistent chat: identity isolation, idempotency, recovery, retries and ca
   await json(path+'/turns/'+pending.turn.id+'/cancel',a,'POST',{});release();
   h=await waitFor(h=>h.items.at(-1)?.status==='cancelled');assert.equal(h.items.at(-1).messages.length,1);
   await new Promise(r=>setTimeout(r,100));assert.equal((await json(path+'/turns',a)).items.at(-1).messages.length,1,'Late provider reply cannot revive cancellation');
-  await db.execute("UPDATE ai_turns SET status='running',finished_at=NULL,lease_token=?,lease_until=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=?",[randomUUID(),pending.turn.id]);
+  await db.execute("UPDATE ai_turns SET status='running',finished_at=NULL,lease_token=?,lease_until=? WHERE id=?",[randomUUID(),new Date(Date.now()-1000),pending.turn.id]);
   await waitFor(h=>h.items.at(-1)?.error==='interrupted');
   h=await json(path+'/turns',a);await json(path,a,'PATCH',{state:'archived',expectedRevision:h.conversation.revision});
   await json(path,a,'PATCH',{title:'stale',expectedRevision:h.conversation.revision},409);
@@ -72,6 +72,6 @@ test('persistent chat: identity isolation, idempotency, recovery, retries and ca
   await age();const late=await json(path+'/turns',a,'POST',{content:'Delete during generation',clientRequestId:randomUUID()},202);
   await waitFor(h=>h.items.at(-1)?.status==='running');
   await json(path,a,'DELETE');release();await json(path+'/turns',a,undefined,undefined,404);
-  await new Promise(r=>setTimeout(r,100));const [[count]]=await db.execute("SELECT COUNT(*) n FROM ai_messages WHERE turn_id=? AND role='assistant'",[late.turn.id]);assert.equal(count.n,0);
+  await new Promise(r=>setTimeout(r,100));const [[count]]=await db.execute("SELECT COUNT(*) n FROM ai_messages WHERE turn_id=? AND role='assistant'",[late.turn.id]);assert.equal(Number(count.n),0);
   await json('auth/logout',a,'POST',{});await json('me/profile',a,undefined,undefined,401);
 });

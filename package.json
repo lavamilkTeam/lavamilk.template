@@ -17,9 +17,13 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "vue-tsc --noEmit && npm run typecheck --prefix apps/ai-agent",
     "check": "npm run lint && npm run typecheck && npm run lint:boundaries && npm run test:unit && npm run build",
-    "check:all": "npm run check && npm run test:deploy && npm run test:integration && npm run test:e2e",
+    "check:all": "npm run check && npm run test:deploy && npm run test:integration && npm run test:postgres && npm run test:accounts && npm run test:e2e",
+    "test:accounts": "node scripts/test-accounts.mjs",
     "dev:agent": "npm run dev --prefix apps/ai-agent -- --host 127.0.0.1 --port 5174 --strictPort",
-    "test:deploy": "python3 -m unittest discover -s ops/deploy/tests -v"
+    "test:deploy": "python3 -m unittest discover -s ops/deploy/tests -v",
+    "test:postgres": "node scripts/test-postgres.mjs",
+    "db:setup": "node scripts/setup-postgres.mjs",
+    "dev:api:pg": "node --env-file=.env.postgres.local server/start.js"
   },
   "dependencies": {
     "vue": "^3.5.13",

@@ -1,13 +1,29 @@
 // Public application boundary: SQL persistence, OAuth and scan adapters are private.
-import { openStore } from './lib/mysql.js';
+import { openStore as openMysqlStore } from './lib/mysql.js';
+import { openStore as openPostgresStore } from './lib/postgres.js';
 import { createOAuth, cookie, hash, setCookie } from './lib/oauth.js';
 import { begin, next, normalizeAccount } from './lib/scanner.js';
 import { createModel, createChat } from './lib/model.js';
 import { createChatRoutes, createChatWorker } from './lib/chat.js';
+import { openAccountRegistry } from '../accounts/index.js';
 
 export async function createApplication(config, { fetch: transport = globalThis.fetch, now = Date.now } = {}) {
   const origin = new URL(config.origin).origin;
-  const store = await openStore(config.databaseUrl);
+  const protocol = new URL(config.databaseUrl).protocol;
+  const openStore = { 'mysql:': openMysqlStore, 'postgres:': openPostgresStore, 'postgresql:': openPostgresStore }[protocol];
+  if (!openStore) throw new Error('Unsupported database protocol');
+  const business = await openStore(config.databaseUrl);
+  let accounts;
+  try { accounts = config.accountDatabaseUrl ? await openAccountRegistry(config.accountDatabaseUrl) : null; }
+  catch(error) { await business.close(); throw error; }
+  const store = accounts ? { ...business,
+    async health() { await business.health(); await accounts.health(); },
+    async signIn(user,token,expires) { await accounts.signIn(user); await business.signIn(user,token,expires); },
+    async session(hash,now) { const user=await business.session(hash,now); return user ? accounts.session(user) : null; },
+    profile: user=>accounts.profile(user),
+    async preferences(user,input) { await accounts.preferences(user,input); await business.preferences(user,input); },
+    async close() { await Promise.all([accounts.close(),business.close()]); },
+  } : business;
   const oauth = createOAuth({ store, fetch:transport, origin, clientId:config.clientId, clientSecret:config.clientSecret, now });
   const codes = { authRequired:401, forbidden:403, accountNotAllowed:400, oauthFailed:400, authUnavailable:503,
     conflict:409, conversationBusy:409, invalidMessage:400, modelBusy:503, modelUnavailable:503, invalidAccount:400, unsupportedAccount:422, identityChanged:409, notFound:404, tooLarge:422, rateLimit:429, github:502, offline:503 };
@@ -45,7 +61,7 @@ export async function createApplication(config, { fetch: transport = globalThis.
   async function handler(req,res) {
     try {
       const url = new URL(req.url,origin), path=url.pathname, method=req.method;
-      if (method==='GET' && path==='/api/pig-king/health') { await store.health(); return json(res,200,{status:'ok',database:'mysql',oauthConfigured:oauth.enabled}); }
+      if (method==='GET' && path==='/api/pig-king/health') { await store.health(); return json(res,200,{status:'ok',database:store.dialect,oauthConfigured:oauth.enabled,...(accounts?{accounts:'postgresql'}:{})}); }
       if (method==='GET' && path==='/api/pig-king/auth/login') {
         try {
           const start=await oauth.start();
