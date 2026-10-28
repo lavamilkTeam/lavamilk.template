@@ -19,6 +19,7 @@ ROOT = Path('/www/wwwroot/lavamilk.club')
 STATE = Path('/www/backups/lavamilk/cicd')
 MAX_BYTES = 150 * 1024 * 1024
 SCHEMA_APPROVAL = Path('/opt/lavamilk-deploy/approved-schema.json')
+RUNTIME_POLICY = Path('/opt/lavamilk-deploy/runtime-policy.json')
 
 
 def command(*args):
@@ -72,31 +73,50 @@ def replace_tree(source, target):
     shutil.copytree(source, target)
 
 
-def verify(dist):
+def verify(dist, policy=None):
+    # Deployment policy is administrator-owned, never supplied by an artifact.
+    if policy is None:
+        policy = json.loads(RUNTIME_POLICY.read_text()) if RUNTIME_POLICY.exists() else {}
+    if (not isinstance(policy, dict) or set(policy) - {'ai_chat', 'accounts'}
+            or policy.get('ai_chat', 'active') not in ('active', 'retired')
+            or policy.get('accounts') not in (None, 'postgresql')):
+        raise ValueError('Invalid deployment runtime policy')
+    retired = policy.get('ai_chat', 'active') == 'retired'
     # Resolve locally while retaining TLS SNI and Host; avoids DNS/CDN ambiguity.
     def fetch(path):
         return subprocess.check_output(['curl', '--fail', '--silent', '--show-error',
                                        '--max-time', '15', '--resolve', 'lavamilk.club:443:127.0.0.1',
                                        'https://lavamilk.club' + path])
+    def expect_status(path, expected):
+        status = command('curl', '--silent', '--show-error', '--max-time', '15', '--output', '/dev/null',
+                         '--write-out', '%{http_code}', '--resolve', 'lavamilk.club:443:127.0.0.1',
+                         'https://lavamilk.club' + path)
+        if status != str(expected):
+            raise ValueError(f'Unexpected HTTP status {status}, expected {expected}: {path}')
     for path in ('/', '/docs', '/pig-king', '/ai-agent'):
         if fetch(path) != (dist / 'index.html').read_bytes():
             raise ValueError(f'Wrong SPA response: {path}')
-    if (dist / 'ai-chat/index.html').exists() and fetch('/ai-chat/') != (dist / 'ai-chat/index.html').read_bytes():
+    if retired:
+        for path in ('/ai-chat', '/ai-chat/', '/ai-chat/index.html', '/ai-chat/assets/__deploy_missing__.js'):
+            expect_status(path, 410)
+    elif (dist / 'ai-chat/index.html').exists() and fetch('/ai-chat/') != (dist / 'ai-chat/index.html').read_bytes():
         raise ValueError('Wrong AI application response')
     for directory in ('assets', 'ai-chat/assets'):
         for path in (dist / directory).rglob('*'):
-            if path.is_file() and fetch('/' + path.relative_to(dist).as_posix()) != path.read_bytes():
+            if not path.is_file():
+                continue
+            if retired and directory == 'ai-chat/assets':
+                expect_status('/' + path.relative_to(dist).as_posix(), 410)
+            elif fetch('/' + path.relative_to(dist).as_posix()) != path.read_bytes():
                 raise ValueError(f'Asset mismatch: {path.name}')
     health = json.loads(fetch('/api/pig-king/health'))
     if health.get('status') != 'ok' or health.get('database') != 'mysql':
         raise ValueError('Community health check failed')
+    if policy.get('accounts') and health.get('accounts') != policy['accounts']:
+        raise ValueError('Shared account database health check failed')
     fetch('/api/health')
-    for prefix in ('assets', 'ai-chat/assets'):
-        status = command('curl', '--silent', '--max-time', '15', '--output', '/dev/null',
-                         '--write-out', '%{http_code}', '--resolve', 'lavamilk.club:443:127.0.0.1',
-                         f'https://lavamilk.club/{prefix}/__deploy_missing__.js')
-        if status != '404':
-            raise ValueError(f'Missing asset returned {status}: {prefix}')
+    for prefix in (('assets',) if retired else ('assets', 'ai-chat/assets')):
+        expect_status(f'/{prefix}/__deploy_missing__.js', 404)
 
 
 def wait_api():

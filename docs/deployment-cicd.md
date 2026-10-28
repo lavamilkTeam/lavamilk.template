@@ -14,7 +14,7 @@
    这把密钥只能接收 `deploy COMMIT RUN_NUMBER` 和标准输入中的发布包，不能开启交互 shell、SFTP 或端口转发。它仍能发布应用代码，应只交给可信仓库管理员。
 3. 在仓库 Actions Secrets 保存 `LAVAMILK_DEPLOY_KEY`（专用私钥）和 `LAVAMILK_KNOWN_HOSTS`（通过现有可信 SSH 连接核验的 `45.192.97.209` 主机公钥行）。禁止用未验证的临时 keyscan 替代主机校验；不要把私钥提交到 Git。
 4. 如果 GitHub 套餐支持，给 `production` environment 限定部署分支 `main`；不设置人工审批即可每次推送自动发布。工作流自身也检查分支和事件。
-5. 在现有 HTTPS server 块中加入 `ops/nginx/lavamilk-spa.conf` 的 `/ai-chat/` 部分，先备份再执行 `nginx -t` 和 reload。保留原有 API、TLS、ACME、日志和宝塔 include。
+5. 按服务器实际启用状态配置下述运行策略。启用 AI 应用时才使用 `ops/nginx/lavamilk-spa.conf` 的 `/ai-chat/` 部分；已停用的入口保留 410。修改 Nginx 前先备份，执行 `nginx -t` 后 reload，并保留原有 API、TLS、ACME、日志和宝塔 include。
 
 ## 发布范围和限制
 
@@ -24,7 +24,21 @@
 
 MySQL schema adapter (`server/community/lib/mysql.js`) 或 PocketBase migrations 变化会在任何线上文件写入前拒绝自动发布。此类变更需要单独的数据备份与迁移方案，并在人工完成后更新对应基线；本流程不自动迁移/回滚数据库、不运行 CMS seed/sync、不更新服务器上接收脚本自身、不改其他站点或容器。后端应保持对现有持久化数据的兼容性，文件回滚不能撤销业务写入。
 
-发布验证包括页面直达、独立 AI 应用、全部 JS/CSS 等构建资源字节、静态资源 404、社区及 CMS 健康状态。任何验证失败恢复本次保存的前后端文件并验证旧版本，GitHub 任务以失败结束。断开 SSH / TERM / INT 会尝试回滚；断电或 SIGKILL 需要管理员恢复。
+发布验证包括页面直达、全部主站构建资源字节、静态资源 404、社区及 CMS 健康状态。独立 AI 应用按服务器运行策略检查可用页面及资源，或严格检查停用状态 410。任何验证失败恢复本次保存的前后端文件并验证旧版本，GitHub 任务以失败结束。断开 SSH / TERM / INT 会尝试回滚；断电或 SIGKILL 需要管理员恢复。
+
+## 服务器运行策略
+
+接收脚本读取 `/opt/lavamilk-deploy/runtime-policy.json`；该文件由 root 持有且应用用户不可写，不接受发布产物覆盖。官网当前的预期策略是：
+
+```json
+{"ai_chat":"retired","accounts":"postgresql"}
+```
+
+`ai_chat: retired` 要求 `/ai-chat`、`/ai-chat/`、入口文件、构建包中的 AI 资源及不存在的 AI 资源全部返回 410。主站资源仍逐字节比对，不存在的主站资源必须返回 404。`accounts: postgresql` 要求社区健康接口明确报告统一账户库为 PostgreSQL；社区业务库仍为 MySQL。拼错字段或未知值直接拒绝发布。
+
+策略缺省时保留历史启用检查（`ai_chat: active`），不会因收到 410 自动放宽验证。恢复 AI 应用须同时调整原生路由和此策略。部署与回滚使用同一份策略。
+
+接收脚本不会随 main 产物自行更新。首次采用新策略时，应持有 `/www/backups/lavamilk/cicd/deploy.lock`，备份已安装脚本和策略、安装新脚本和策略，再对现行 dist 执行 `verify`；失败则恢复这两个文件。服务器验证成功后再推送 main，核对 Actions 和 `current.json` 的提交一致。
 
 ## 状态与回滚
 

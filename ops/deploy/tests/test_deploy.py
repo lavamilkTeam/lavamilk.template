@@ -140,6 +140,50 @@ class DeploymentTests(unittest.TestCase):
             deploy.publish(stage, backup, root)
         self.assertFalse(backup.exists())
 
+    def test_runtime_policy_checks_active_and_retired_routes_without_skipping_assets(self):
+        dist = self.base / 'dist'
+        for name, value in {'index.html': b'spa', 'assets/app.js': b'main',
+                            'ai-chat/index.html': b'chat', 'ai-chat/assets/chat.js': b'chat-code'}.items():
+            path = dist / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(value)
+        def responses(retired, wrong_status=False, bad_asset=False, accounts='postgresql'):
+            def output(args, **kwargs):
+                path = args[-1].removeprefix('https://lavamilk.club')
+                if '--write-out' in args:
+                    return '200' if wrong_status else ('410' if retired and path.startswith('/ai-chat') else '404')
+                if path == '/api/pig-king/health':
+                    return json.dumps({'status': 'ok', 'database': 'mysql', 'accounts': accounts}).encode()
+                if path == '/api/health':
+                    return b'{}'
+                if path in ('/', '/docs', '/pig-king', '/ai-agent'):
+                    return b'spa'
+                if path == '/ai-chat/':
+                    return b'chat'
+                if path == '/assets/app.js' and bad_asset:
+                    return b'corrupt'
+                return (dist / path.lstrip('/')).read_bytes()
+            return output
+        for retired in (False, True):
+            policy = {'ai_chat': 'retired' if retired else 'active', 'accounts': 'postgresql'}
+            with patch.object(deploy.subprocess, 'check_output', side_effect=responses(retired)) as transport:
+                deploy.verify(dist, policy)
+                requested = {call.args[0][-1].removeprefix('https://lavamilk.club')
+                             for call in transport.call_args_list}
+                self.assertTrue({'/ai-chat/', '/ai-chat/assets/chat.js',
+                                 '/ai-chat/assets/__deploy_missing__.js', '/assets/app.js',
+                                 '/assets/__deploy_missing__.js'} <= requested)
+                if retired:
+                    self.assertTrue({'/ai-chat', '/ai-chat/index.html'} <= requested)
+            for kwargs in ({'wrong_status': True}, {'bad_asset': True}, {'accounts': None}):
+                with self.subTest(retired=retired, failure=kwargs), \
+                        patch.object(deploy.subprocess, 'check_output', side_effect=responses(retired, **kwargs)), \
+                        self.assertRaises(ValueError):
+                    deploy.verify(dist, policy)
+        for policy in ({'ai_chat': 'ignore'}, {'accounts': 'mysql'}, {'skip': True}, []):
+            with self.assertRaisesRegex(ValueError, 'Invalid'):
+                deploy.verify(dist, policy)
+
 
 if __name__ == '__main__':
     unittest.main()

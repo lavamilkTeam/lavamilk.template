@@ -32,7 +32,7 @@ preview 完整执行后回滚。apply 在源一致性快照和目标事务内导
 - PostgreSQL 原始本机 trust 规则已改为本机 socket peer 与 TCP 密码认证；正确密码、错误密码拒绝、普通系统用户不得冒充 postgres 均已验证。
 - 备份：`/www/backups/lavamilk/account-migration-20261028-132224`。包含最终 MySQL dump、PG 初始化前快照、旧后端与 Compose/Nginx/发布配置。MySQL dump 已恢复到本机隔离临时库并核对账号/资料数量，临时库随后清理。
 - `/opt/lavamilk-account-migration/completed.json` 保存实际发布文件 SHA-256 清单与迁移结果；私有连接串不在仓库。
-- 本次仅替换后端并重新创建 api 服务，未发布前端。线上 Nginx 将旧 `/ai-chat/` 入口返回 410；现有整站发布校验仍要求该入口可用，因此本次不触发整站自动发布。后续整站发布前需要单独核对这项既有路由与发布检查的差异。
+- 本次仅替换后端并重新创建 api 服务，未发布前端。线上 Nginx 将旧 `/ai-chat/` 入口返回 410。整站发布接收器通过管理员持有的运行策略显式验证停用状态，同时检查统一账户库健康状态；安装与验证步骤见 [自动发布](../deployment-cicd.md#服务器运行策略)。
 - 服务器发布门禁现在额外校验 accounts 模块文件，阻止旧产物移除统一账户接入；更新已审批账户代码或 schema 需按显式迁移流程核对基线。
 
 ## 验证与回退
